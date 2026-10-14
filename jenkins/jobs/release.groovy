@@ -1,39 +1,36 @@
 // The Pipeline seed defaults to manual builds while initial delivery is configured.
-def suppressBuilds = binding.hasVariable('suppressAutomaticBuilds') && binding.getVariable('suppressAutomaticBuilds')
+def suppressBuilds = suppressAutomaticBuilds
 def services = ['frontend','catalogue','cart','orders']
-if (binding.hasVariable('enableIncidentBridgeBuild') && binding.getVariable('enableIncidentBridgeBuild')) {
+if (enableIncidentBridgeBuild) {
  services << 'platform'
 }
 services.each { service ->
  multibranchPipelineJob("boutique-${service}") {
   branchSources {
-   github {
-    id("boutique-${service}-trusted-main")
-    repoOwner('subhankar12-spec')
-    repository("boutique-${service}")
-    scanCredentialsId('github-read')
-    buildOriginBranch(true)
-    buildOriginPRMerge(false)
-    buildForkPRMerge(false)
-   }
-  }
-  configure { node ->
-   def sourceNode = node / sources / data / 'jenkins.branch.BranchSource' / source
-   // Explicit traits bypass GitHubSCMSource's legacy discovery migration.
-   // Keep branch discovery alongside the main filter and remove obsolete flags.
-   sourceNode.children().removeAll { child -> child instanceof groovy.util.Node && child.name() in [
-    'includes','excludes','buildOriginBranch','buildOriginBranchWithPR',
-    'buildOriginPRMerge','buildOriginPRHead','buildForkPRMerge','buildForkPRHead'
-   ] }
-   def traits = sourceNode / traits
-   traits << 'org.jenkinsci.plugins.github_branch_source.BranchDiscoveryTrait' { strategyId(3) }
-   traits << 'jenkins.scm.impl.trait.WildcardSCMHeadFilterTrait' { includes('main'); excludes('') }
-   if (suppressBuilds) {
-    def branchSource = node / sources / data / 'jenkins.branch.BranchSource'
-    branchSource.children().removeAll { child -> child instanceof groovy.util.Node && child.name() == 'strategy' }
-    branchSource.appendNode('strategy', [class: 'jenkins.branch.DefaultBranchPropertyStrategy'])
-      .appendNode('properties').appendNode('jenkins.branch.NoTriggerBranchProperty')
-      .appendNode('triggeredBranchesRegex', '^$')
+   branchSource {
+    source {
+     github {
+      id("boutique-${service}-trusted-main")
+      credentialsId('github-read')
+      repoOwner('subhankar12-spec')
+      repository("boutique-${service}")
+      repositoryUrl("https://github.com/subhankar12-spec/boutique-${service}")
+      configuredByUrl(false)
+      traits {
+       gitHubBranchDiscovery { strategyId(3) }
+       headWildcardFilter { includes('main'); excludes('') }
+      }
+     }
+    }
+    if (suppressBuilds) {
+     strategy {
+      defaultBranchPropertyStrategy {
+       props {
+        noTriggerBranchProperty { triggeredBranchesRegex('^$') }
+       }
+      }
+     }
+    }
    }
   }
   orphanedItemStrategy { discardOldItems { numToKeep(10) } }

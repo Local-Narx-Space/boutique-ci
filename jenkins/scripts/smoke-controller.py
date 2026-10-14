@@ -151,7 +151,9 @@ warnings.values().each { println(it) }
 
             role_paths = {role: str(ROOT / 'jenkins/jobs/release.groovy') for role in ('release', 'release-with-incident')}
             result = groovy('''import javaposse.jobdsl.plugin.JenkinsJobManagement
-import javaposse.jobdsl.dsl.DslScriptLoader
+import javaposse.jobdsl.plugin.SandboxDslScriptLoader
+import org.jenkinsci.plugins.workflow.job.WorkflowJob
+import org.jenkinsci.plugins.scriptsecurity.scripts.ScriptApproval
 import javaposse.jobdsl.dsl.Item
 import jenkins.model.Jenkins
 class DryRunJobManagement extends JenkinsJobManagement {
@@ -161,14 +163,18 @@ class DryRunJobManagement extends JenkinsJobManagement {
  @Override void queueJob(String name) { throw new IllegalStateException('SCM/build scheduling is forbidden in this dry run') }
 }
 def roles=new groovy.json.JsonSlurper().parseText(''' + json.dumps(json.dumps(role_paths)) + ''')
+assert ScriptApproval.get().approvedSignatures.length == 0
+def seed=Jenkins.get().createProject(WorkflowJob,'isolated-sandbox-seed')
 roles.each { role,path ->
  def management=new DryRunJobManagement(role=='release-with-incident')
- new DslScriptLoader(management).runScript(new File(path).text)
+ new SandboxDslScriptLoader(management,seed).runScript(new File(path).text)
  management.generated.each { name,xml ->
   def document=new XmlParser(false,false).parseText(xml)
   def source=document.sources.data.'jenkins.branch.BranchSource'.source
   if(source.size()) {
-   assert document.sources.data.'jenkins.branch.BranchSource'.strategy.properties.'jenkins.branch.NoTriggerBranchProperty'.triggeredBranchesRegex.text() == '^$': 'Bootstrap must suppress automatic builds'
+   def branch=Jenkins.XSTREAM2.fromXML(groovy.xml.XmlUtil.serialize(document.sources.data.'jenkins.branch.BranchSource'[0]))
+   def properties=branch.strategy.getPropertiesFor(new jenkins.scm.api.SCMHead('main'))
+   assert properties.find { it.class.simpleName=='NoTriggerBranchProperty' }?.triggeredBranchesRegex == '^$': 'Bootstrap must suppress automatic builds'
    def original=source[0]
    def type=original.attribute('class')
    original.attributes().remove('class')
@@ -186,13 +192,17 @@ roles.each { role,path ->
  }
  assert management.generated.size() == (role=='release' ? 9 : 10): 'Unexpected job count'
  assert management.generated.containsKey('boutique-platform') == (role=='release-with-incident'): 'Adapter build must be opt-in'
- println('JOBDSL_CHECK_PASSED '+role+' count='+management.generated.size())
+ assert ScriptApproval.get().approvedSignatures.length == 0
+ println('JOBDSL_CHECK_PASSED '+role+' count='+management.generated.size()+' sandbox=true approvals=0')
 }
 ''')
             (runtime / 'job-dsl-check.txt').write_text(result)
             if 'JOBDSL_CHECK_PASSED release count=9' not in result or 'JOBDSL_CHECK_PASSED release-with-incident count=10' not in result:
                 raise RuntimeError('JobDSL validation failed; inspect job-dsl-check.txt')
             print(result.strip())
+            report['jobDslGeneratedJobs'] = {'default': 9, 'withIncidentBridge': 10}
+            report['jobDslSandbox'] = True
+            report['jobDslCustomMethodApprovals'] = 0
 
             source = (ROOT / 'vars/servicePipeline.groovy').read_text()
             body = source[source.index('    pipeline {'):source.rfind('\n}')]

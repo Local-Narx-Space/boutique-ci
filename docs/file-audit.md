@@ -1,6 +1,6 @@
 # CI repository file audit
 
-Audited on 2026-10-10 against the single-controller delivery flow. This lists
+Audited on 2026-10-14 against the single-controller delivery flow. This lists
 every tracked file, including this audit. Required means used by the current
 supported setup; it does not mean you must run every helper to deploy locally.
 No previous signed-delivery workflow or validation controller remains.
@@ -94,7 +94,8 @@ python3 jenkins/scripts/smoke-controller.py --directory /tmp/boutique-ci-audit
 
 The audit checks all Python/shell syntax, Markdown links, Compose structure,
 Dockerfile definitions and the plugin dependency graph. Native Jenkins validates
-all retained plugins, JCasC, actual Job DSL and Declarative pipelines; isolated
+all retained plugins, JCasC, actual sandboxed Job DSL with zero custom method
+approvals and Declarative pipelines; isolated
 runtime fixtures check downstream failure propagation and JUnit pass/fail/unstable
 gates. These fixtures use no real GitHub/cloud/cluster credentials.
 
@@ -107,3 +108,10 @@ Live GitHub/GHCR publication, Argo deployment, target worker connectivity and
 notifications remain separate acceptance work. See the platform repository's
 [current validation](https://github.com/subhankar12-spec/boutique-platform/blob/main/docs/validation.md)
 and [deployment guide](https://github.com/subhankar12-spec/boutique-platform/blob/main/docs/deploy-cicd-kind.md).
+
+The seed uses supported source/trait/branch-strategy DSL rather than deferred XML
+configure blocks. Authorize Project must be installed and configured separately
+on the controller to give this sandboxed seed a real operator identity; the
+current 79-plugin image lock does not include it. Follow the platform Jenkins
+setup guide for the seed Authorization sidebar page. Full-SHA seed checkout must
+have Lightweight checkout disabled.
