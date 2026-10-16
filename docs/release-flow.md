@@ -43,9 +43,12 @@ Keep BOUTIQUE_RELEASE_AUTOMATION unset until these prerequisites are met:
 - Bootstrap all four services in dev and staging to valid published digests;
   prepare production selections before registering its auto-sync Application.
   Never sync bootstrap image tags or omit required namespace secrets.
-- Apply applications/{dev,staging,production}-laptop.yaml from boutique-gitops
-  only when the corresponding environment is ready. All enable automated sync,
-  pruning of removed managed resources and drift correction.
+- Apply applications/laptop-projects.yaml and applications/laptop-appset.yaml
+  from boutique-gitops. The ApplicationSet generates dev/staging/production. Dev
+  auto-syncs; enable staging/production autoSync only when prerequisites pass.
+  Commit and reapply the ApplicationSet when changing that bootstrap setting.
+  Enabled environments sync automatically, prune removed managed resources and
+  correct drift. No root app is required.
 - Configure Jenkins Secret File credentials kubeconfig-dev, kubeconfig-staging,
   kubeconfig-production. Use restricted verification identities: get the relevant
   Argo Application, get/list/watch deployments and replicasets in that namespace.
