@@ -2,6 +2,10 @@ pipeline {
     agent { label 'trusted-release' }
     options { timestamps(); timeout(time: 20, unit: 'MINUTES'); disableConcurrentBuilds(); skipDefaultCheckout(true) }
     parameters { string(name: 'PR_NUMBER', defaultValue: '', description: 'GitOps PR number to validate') }
+    // Bind validated request parameters explicitly, including the first triggered build.
+    environment {
+        PR_NUMBER = "${params.PR_NUMBER}"
+    }
     stages {
         stage('Validate request') {
             steps { script {

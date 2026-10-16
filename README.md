@@ -92,3 +92,9 @@ before selecting this library revision. The fresh controller's checksum lock
 includes it. Installing a plugin does not require replacing Jenkins home/JCasC.
 
 See the [file-by-file CI audit](docs/file-audit.md) for every retained file, optional installation tools and validation boundaries.
+
+Operational pipelines bind their request parameters explicitly into shell
+environments. This matters on a job's first upstream-triggered run: Jenkins
+can expose values through `params` before exporting them as shell variables.
+Dev promotion also passes the verified archived image/source directly to its
+helper; publishing builds can be reused without rebuilding the same commit.

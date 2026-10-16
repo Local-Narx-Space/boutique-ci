@@ -10,7 +10,7 @@ def call() {
     if (!(source ==~ /[a-f0-9]{40}/) || image != params.IMAGE || !image.startsWith("ghcr.io/subhankar12-spec/boutique-${params.SERVICE}@sha256:")) {
         error('Publishing artifacts differ from the requested release')
     }
-    withEnv(["RELEASE_SOURCE_COMMIT=${source}"]) {
+    withEnv(["RELEASE_SOURCE_COMMIT=${source}", "SERVICE=${params.SERVICE}", "IMAGE=${image}"]) {
         sh 'python3 scripts/promote.py "$SERVICE" dev "$IMAGE" --chart-package release-artifacts/chart.tgz --source-commit "$RELEASE_SOURCE_COMMIT"'
     }
 }

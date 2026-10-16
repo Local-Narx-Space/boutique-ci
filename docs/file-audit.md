@@ -139,3 +139,14 @@ user using the writable paths. The cloud runner blocked the default mirror;
 validation used official ghcr.io/aquasecurity/trivy-db:2 with normal TLS. The
 pipeline keeps its normal download source and scan gates. A full laptop build
 still needs to be rerun.
+
+The first live promotion run on 2026-10-16 could read its Groovy parameters but
+passed empty SERVICE/IMAGE values to its shell. Promotion, rollback, verification
+and PR validation now explicitly bind request parameters; shared release/PR
+helpers also receive their service/target/image values explicitly. The actual Groovy release helper was exercised with parameter shell variables
+absent: the old version reproduced missing arguments and the fixed version
+passed the verified service/image/source/package to a real shell. Updated
+pipeline files passed Groovy compilation and embedded shell syntax checks.
+A fresh native Jenkins validation was not completed: its core artifact download
+was too slow and was stopped before any controller started. Target-host
+promotion remains to verify.

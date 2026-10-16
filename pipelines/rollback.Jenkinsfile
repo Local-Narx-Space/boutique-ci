@@ -7,6 +7,12 @@ pipeline {
         choice(name: 'SERVICE', choices: ['frontend','catalogue','cart','orders'])
         string(name: 'GITOPS_COMMIT', defaultValue: '', description: 'Previous protected-main commit containing the known-good service image/chart')
     }
+    // Bind validated request parameters explicitly, including the first triggered build.
+    environment {
+        TARGET = "${params.TARGET}"
+        SERVICE = "${params.SERVICE}"
+        GITOPS_COMMIT = "${params.GITOPS_COMMIT}"
+    }
     stages {
         stage('Validate recovery request') {
             steps { script {

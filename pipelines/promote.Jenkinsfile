@@ -8,6 +8,13 @@ pipeline {
         string(name: 'IMAGE', defaultValue: '', description: 'Dev: published service digest. Other environments copy the preceding selection.')
         string(name: 'RELEASE_BUILD', defaultValue: '', description: 'Dev only: service/main publishing build number')
     }
+    // Bind validated request parameters explicitly, including the first triggered build.
+    environment {
+        TARGET = "${params.TARGET}"
+        SERVICE = "${params.SERVICE}"
+        IMAGE = "${params.IMAGE}"
+        RELEASE_BUILD = "${params.RELEASE_BUILD}"
+    }
     stages {
         stage('Validate request') {
             steps { script {

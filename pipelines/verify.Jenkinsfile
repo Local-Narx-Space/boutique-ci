@@ -7,6 +7,13 @@ pipeline {
         string(name:'IMAGE',defaultValue:'',description:'Exact immutable image expected in the selected service')
         string(name:'GITOPS_COMMIT',defaultValue:'',description:'Full reviewed GitOps merge commit')
     }
+    // Bind validated request parameters explicitly, including the first triggered build.
+    environment {
+        TARGET = "${params.TARGET}"
+        SERVICE = "${params.SERVICE}"
+        IMAGE = "${params.IMAGE}"
+        GITOPS_COMMIT = "${params.GITOPS_COMMIT}"
+    }
     stages {
         stage('Validate verification target') {
             steps { script {

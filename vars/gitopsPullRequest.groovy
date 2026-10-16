@@ -14,7 +14,7 @@ For promotion, confirm the preceding environment's rollout and smoke tests passe
 Argo CD deploys after this PR is reviewed and merged. This job does not merge it.
 """
     withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
-        withEnv(["GITOPS_ACTION=${action}"]) {
+        withEnv(["GITOPS_ACTION=${action}", "SERVICE=${params.SERVICE}", "TARGET=${params.TARGET}"]) {
             sh '''set +x
                 set -eu
                 BRANCH="jenkins/$GITOPS_ACTION/$TARGET/$SERVICE/$BUILD_NUMBER"
