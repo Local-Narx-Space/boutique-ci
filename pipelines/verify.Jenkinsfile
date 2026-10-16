@@ -55,7 +55,9 @@ pipeline {
                         sh 'python3 platform/tests/smoke/smoke.py --environment "$TARGET" --report reports/smoke.json'
                     }
                     if (env.BASE_URL.startsWith('https://')) {
-                        withCredentials([file(credentialsId: "boutique-ca-${params.TARGET}", variable: 'SSL_CERT_FILE')]) { smoke() }
+                        if (env.BOUTIQUE_USE_PRIVATE_CA == 'true') {
+                            withCredentials([file(credentialsId: "boutique-ca-${params.TARGET}", variable: 'SSL_CERT_FILE')]) { smoke() }
+                        } else { smoke() } // Publicly trusted Cloudflare/AWS certificates use system CAs.
                     } else { smoke() }
                 }
                 withCredentials([file(credentialsId: "kubeconfig-${params.TARGET}", variable: 'KUBECONFIG')]) {
@@ -64,6 +66,18 @@ pipeline {
                         kubectl -n argocd get application "boutique-$TARGET" -o json > reports/argocd.json
                     '''
                 }
+            }
+        }
+        stage('Promote verified dev release to staging') {
+            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'dev' } }
+            steps {
+                // IMAGE pins the verified dev digest; promotion fails if dev has moved on.
+                build job: 'boutique-promote', wait: false, parameters: [
+                    string(name: 'TARGET', value: 'staging'),
+                    string(name: 'SERVICE', value: params.SERVICE),
+                    string(name: 'IMAGE', value: params.IMAGE),
+                    string(name: 'RELEASE_BUILD', value: '')
+                ]
             }
         }
     }

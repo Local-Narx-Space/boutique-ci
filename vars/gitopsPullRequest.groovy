@@ -11,7 +11,7 @@ Rollback commit: ${params.GITOPS_COMMIT ?: 'Not applicable'}
 
 Review the image digest, chart package, validation result and database migration compatibility.
 For promotion, confirm the preceding environment's rollout and smoke tests passed.
-Argo CD deploys after this PR is reviewed and merged. This job does not merge it.
+Dev/staging bot promotion PRs may merge automatically after successful validation when release automation is enabled. Production and rollback require review. Argo CD deploys merged changes.
 """
     withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
         withEnv(["GITOPS_ACTION=${action}", "SERVICE=${params.SERVICE}", "TARGET=${params.TARGET}"]) {
@@ -43,5 +43,5 @@ Argo CD deploys after this PR is reviewed and merged. This job does not merge it
     // Queue without waiting: one shared executor runs validation after this job ends.
     build job: 'boutique-gitops-validate', wait: false, parameters: [string(name: 'PR_NUMBER', value: number)]
     archiveArtifacts artifacts: 'gitops-pr-url.txt,planned-change.diff', fingerprint: true
-    echo "Review and merge the PR: ${readFile('gitops-pr-url.txt').trim()}"
+    echo "Deployment PR (validation follows): ${readFile('gitops-pr-url.txt').trim()}"
 }

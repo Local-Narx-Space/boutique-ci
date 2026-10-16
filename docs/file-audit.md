@@ -164,3 +164,12 @@ version notice check. Native Trivy 0.75.0 scanned the actual orders POM with
 network access blocked and still failed a synthetic private-key fixture. Image
 vulnerability scanning is unchanged; a Maven build must respect Retry-After
 and still needs dependency repository access.
+
+## Release automation extension
+
+`docs/release-flow.md` records the release sequence and external activation steps.
+`scripts/automatic-release.py` gates automatic merging to validated bot-owned
+service release PRs for dev/staging. `scripts/test-automatic-release.py` exercises
+its trust boundaries without credentials. Operational Jenkinsfiles queue rollout
+verification and only advance successful dev verification. Production remains
+reviewed; manually merged production verification still requires an explicit run.

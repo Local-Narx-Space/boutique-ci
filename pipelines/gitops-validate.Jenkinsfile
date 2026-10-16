@@ -15,6 +15,7 @@ pipeline {
         stage('Fetch protected tools and PR revision') {
             steps {
                 deleteDir()
+                dir('automation') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-ci.git', credentialsId: 'github-read']]]) }
                 dir('tools') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]]) }
                 withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                     sh '''set +x
@@ -68,6 +69,64 @@ PR
                         gh api --method POST "repos/subhankar12-spec/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=success -f context='boutique/gitops-validation' -f description='Helm and Kubernetes manifests passed' -f target_url="$BUILD_URL" >/dev/null
                     '''
                 }
+            }
+        }
+        stage('Merge validated dev or staging promotion') {
+            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
+                    sh '''set +x
+                        set -eu
+                        gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
+                        BOT=$(gh api user --jq .login)
+                        python3 automation/scripts/automatic-release.py --pr current-pr.json --bot "$BOT" --head "$PR_HEAD_SHA" --candidate candidate > automatic-release.json
+                        if [ "$(cat automatic-release.json)" = null ]; then
+                            echo 'Human-reviewed change: automatic merge skipped.'
+                            exit 0
+                        fi
+                        # GitHub enforces branch protections; never use admin bypass.
+                        gh api --method PUT "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
+                        python3 - <<'MERGE'
+import json
+from pathlib import Path
+result = json.loads(Path('merge.json').read_text())
+if result.get('merged') is not True:
+    raise SystemExit('GitHub did not merge the validated promotion')
+import re
+sha = result.get('sha', '')
+if not re.fullmatch(r'[a-f0-9]{40}', sha):
+    raise SystemExit('Missing merge commit SHA')
+Path('merge-sha.txt').write_text(sha)
+MERGE
+                    '''
+                }
+                script {
+                    if (fileExists('merge-sha.txt')) {
+                        env.AUTO_MERGE_SHA = readFile('merge-sha.txt').trim()
+                        env.AUTO_TARGET = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('automatic-release.json'))['target'])"''').trim()
+                        env.AUTO_SERVICE = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('automatic-release.json'))['service'])"''').trim()
+                        env.AUTO_IMAGE = sh(returnStdout: true, script: '''python3 - "$AUTO_SERVICE" "$AUTO_TARGET" <<'IMAGE'
+import sys
+sys.path.insert(0, 'tools/scripts')
+from release_config import selected_image
+from pathlib import Path
+print(selected_image(Path.cwd() / 'candidate', sys.argv[1], sys.argv[2]))
+IMAGE
+''').trim()
+                    }
+                }
+            }
+        }
+        stage('Queue deployed release verification') {
+            when { expression { env.AUTO_MERGE_SHA } }
+            steps {
+                // Release the executor before verification waits for Argo.
+                build job: 'boutique-verify', wait: false, parameters: [
+                    string(name: 'TARGET', value: env.AUTO_TARGET),
+                    string(name: 'SERVICE', value: env.AUTO_SERVICE),
+                    string(name: 'IMAGE', value: env.AUTO_IMAGE),
+                    string(name: 'GITOPS_COMMIT', value: env.AUTO_MERGE_SHA)
+                ]
             }
         }
     }
