@@ -98,3 +98,9 @@ environments. This matters on a job's first upstream-triggered run: Jenkins
 can expose values through `params` before exporting them as shell variables.
 Dev promotion also passes the verified archived image/source directly to its
 helper; publishing builds can be reused without rebuilding the same commit.
+
+Source-secret scanning runs Trivy in offline dependency-resolution mode. It
+still scans source files (including POM files) for secrets, but does not query
+Maven Central to identify dependencies for this secret-only stage. The runtime
+image vulnerability/secret scan remains unchanged. Respect repository Retry-After
+responses; later Maven dependency downloads still require repository access.

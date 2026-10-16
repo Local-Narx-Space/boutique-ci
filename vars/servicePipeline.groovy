@@ -48,7 +48,8 @@ def call(Map config) {
                         steps { sh 'git fetch origin main && git merge-base --is-ancestor "$SOURCE_COMMIT" origin/main' }
                     }
                     stage('Source secret scan') {
-                        steps { sh 'trivy fs --scanners secret --exit-code 1 --severity HIGH,CRITICAL .' }
+                        // Secret detection needs source files, not remote Maven dependency resolution.
+                        steps { sh 'trivy fs --scanners secret --offline-scan --skip-version-check --exit-code 1 --severity HIGH,CRITICAL .' }
                     }
                     stage('Monitoring configuration') {
                         when { expression { config.service == 'incident-bridge' } }

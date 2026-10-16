@@ -157,3 +157,10 @@ actual parser cases accepted the valid same-repository/main/open PR and rejected
 closed/forked/wrong-base/invalid-digest/malformed inputs. Groovy compilation and
 embedded shell syntax passed; no new plugin or script approval is required.
 Full target-host PR validation remains the acceptance check.
+
+Orders encountered a Maven Central 429 during Trivy's source-secret stage on
+2026-10-16. That stage now uses --offline-scan and suppresses the unrelated
+version notice check. Native Trivy 0.75.0 scanned the actual orders POM with
+network access blocked and still failed a synthetic private-key fixture. Image
+vulnerability scanning is unchanged; a Maven build must respect Retry-After
+and still needs dependency repository access.
