@@ -34,6 +34,9 @@ def call(Map config) {
                                 env.BUILD_CONTEXT = config.service == 'incident-bridge' ? 'monitoring/incident-bridge' : '.'
                                 env.IMAGE_TAG = "${env.REGISTRY}/${env.GITHUB_OWNER}/boutique-${config.service}:${env.SOURCE_COMMIT}"
                                 env.TEST_IMAGE = "${env.IMAGE_TAG}-test"
+                                // Initialize before Test: the non-root agent may have an unwritable HOME.
+                                env.DOCKER_CONFIG = "${pwd()}/.docker"
+                                sh 'install -d -m 700 "$DOCKER_CONFIG"'
                             }
                         }
                     }

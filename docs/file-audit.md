@@ -115,3 +115,9 @@ on the controller to give this sandboxed seed a real operator identity; the
 current 79-plugin image lock does not include it. Follow the platform Jenkins
 setup guide for the seed Authorization sidebar page. Full-SHA seed checkout must
 have Lightweight checkout disabled.
+
+On 2026-10-16, the live frontend run exposed Docker buildx attempting to write
+`/.docker` before the Test stage could start. Checkout now initializes a private
+workspace Docker configuration directory for all later steps. A non-root native
+Docker build reproduced the failure with `HOME=/` and passed with the writable
+configuration path. This focused check is not a full service pipeline rerun.
