@@ -73,7 +73,10 @@ removedJobAction=IGNORE deliberately preserves existing jobs.
 ## Separate test and image stages
 
 `Test` builds the service Dockerfile's `test` target, then runs it as a disposable
-container running as the agent UID, with a writable temporary home. The service's
+container with a writable temporary home. On rootful validation daemons it uses
+the agent UID/GID; on rootless daemons it uses container UID/GID 0, which map to
+the unprivileged daemon owner and allow writes to the agent-owned report mount.
+This does not change application runtime users. The service's
 `ci/test.sh` runs tests afresh and writes JUnit XML into
 `test-reports/` through a report-only workspace mount. The agent and its private
 Docker daemon must see that workspace at the same absolute path.

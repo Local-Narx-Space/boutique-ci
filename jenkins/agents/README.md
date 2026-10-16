@@ -91,3 +91,10 @@ An optional untrusted worker needs isolated infrastructure, credentials and a se
 Expose the controller through authenticated TLS infrastructure and configure `JENKINS_RELEASE_URL` with the externally reachable HTTPS URL before starting controller Compose. Remove `--network host` for remote agents and use their normal routed network. Import the actual organizational CA into the agent trust store when needed; do not disable certificate verification.
 
 Optional read-only verification needs network access to the cluster API and application TLS origins. Terraform agents use short-lived workload/instance-role credentials and a route to private EKS endpoints. Configure scoped Jenkins identities and permissions, node restrictions, controller backups, and reviewed GitHub credentials before enabling real delivery. The image and controller smoke check validate tooling/configuration; they do not provision remote agent VMs.
+
+For test report bind mounts, the agent workspace and rootless daemon must use
+the same host owner. Container UID 0 maps to that unprivileged owner; an explicit
+container UID equal to the host UID instead maps into the subordinate UID range.
+The shared pipeline detects rootless mode and selects container UID/GID 0 for
+test runners, retaining dropped capabilities and no-new-privileges. Runtime
+application images retain their configured non-root users.

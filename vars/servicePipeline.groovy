@@ -74,7 +74,14 @@ def call(Map config) {
                             sh '''set -eu
                                 mkdir -p test-reports
                                 docker build --pull --target test --tag "$TEST_IMAGE" "$BUILD_CONTEXT"
-                                docker run --rm --user "$(id -u):$(id -g)" --env HOME=/tmp \
+                                test_user="$(id -u):$(id -g)"
+                                docker_security=$(docker info --format '{{json .SecurityOptions}}')
+                                # Rootless container UID 0 maps to the unprivileged daemon owner.
+                                # Reusing the host UID would map to a subordinate UID instead.
+                                case "$docker_security" in
+                                    *'"name=rootless"'*) test_user=0:0 ;;
+                                esac
+                                docker run --rm --user "$test_user" --env HOME=/tmp \
                                     --cap-drop ALL --security-opt no-new-privileges:true \
                                     --mount "type=bind,source=$WORKSPACE/test-reports,target=/reports" "$TEST_IMAGE"
                             '''

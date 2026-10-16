@@ -121,3 +121,11 @@ On 2026-10-16, the live frontend run exposed Docker buildx attempting to write
 workspace Docker configuration directory for all later steps. A non-root native
 Docker build reproduced the failure with `HOME=/` and passed with the writable
 configuration path. This focused check is not a full service pipeline rerun.
+
+A second live-run correction on 2026-10-16 handles rootless report ownership:
+container UID/GID 0 map to the unprivileged daemon owner, while reusing the host
+UID/GID maps into subordinate IDs. The test runner now selects 0:0 only for a
+rootless daemon; rootful validation retains the agent UID/GID. Selector checks
+covered both modes and an actual non-root rootful container wrote agent-owned
+XML through the report mount. Rootless execution must still be confirmed on
+the user's daemon; application runtime identities are unchanged.
