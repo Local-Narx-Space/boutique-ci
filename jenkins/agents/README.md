@@ -98,3 +98,10 @@ container UID equal to the host UID instead maps into the subordinate UID range.
 The shared pipeline detects rootless mode and selects container UID/GID 0 for
 test runners, retaining dropped capabilities and no-new-privileges. Runtime
 application images retain their configured non-root users.
+
+The shared service pipeline initializes a private writable HOME under Jenkins's
+per-workspace temporary directory before running tools. XDG_CACHE_HOME and
+TRIVY_CACHE_DIR point below that home, so numeric agent UIDs inheriting HOME=/
+do not write into /.cache. The Docker credential directory remains separate
+inside the checkout and is removed after the build. Cache files remain private
+to the agent workspace; review storage usage during normal agent maintenance.

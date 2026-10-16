@@ -34,9 +34,12 @@ def call(Map config) {
                                 env.BUILD_CONTEXT = config.service == 'incident-bridge' ? 'monitoring/incident-bridge' : '.'
                                 env.IMAGE_TAG = "${env.REGISTRY}/${env.GITHUB_OWNER}/boutique-${config.service}:${env.SOURCE_COMMIT}"
                                 env.TEST_IMAGE = "${env.IMAGE_TAG}-test"
-                                // Initialize before Test: the non-root agent may have an unwritable HOME.
+                                // A numeric agent UID may inherit HOME=/; keep tool state private and writable.
+                                env.HOME = "${pwd(tmp: true)}/home"
+                                env.XDG_CACHE_HOME = "${env.HOME}/.cache"
+                                env.TRIVY_CACHE_DIR = "${env.XDG_CACHE_HOME}/trivy"
                                 env.DOCKER_CONFIG = "${pwd()}/.docker"
-                                sh 'install -d -m 700 "$DOCKER_CONFIG"'
+                                sh 'install -d -m 700 "$HOME" "$XDG_CACHE_HOME" "$TRIVY_CACHE_DIR" "$DOCKER_CONFIG"'
                             }
                         }
                     }

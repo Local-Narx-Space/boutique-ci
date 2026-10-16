@@ -129,3 +129,13 @@ rootless daemon; rootful validation retains the agent UID/GID. Selector checks
 covered both modes and an actual non-root rootful container wrote agent-owned
 XML through the report mount. Rootless execution must still be confirmed on
 the user's daemon; application runtime identities are unchanged.
+
+A further live-run correction on 2026-10-16 initializes HOME and cache paths
+before source/image scanners. A numeric agent UID inherited HOME=/, causing
+Trivy's vulnerability DB download to fail at /.cache. The pipeline now creates
+a private per-workspace temporary home, XDG cache and explicit Trivy cache.
+Native Trivy 0.75.0 successfully downloaded and saved its actual DB as a non-root
+user using the writable paths. The cloud runner blocked the default mirror;
+validation used official ghcr.io/aquasecurity/trivy-db:2 with normal TLS. The
+pipeline keeps its normal download source and scan gates. A full laptop build
+still needs to be rerun.
