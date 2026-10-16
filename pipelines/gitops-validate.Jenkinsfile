@@ -23,9 +23,25 @@ pipeline {
                     '''
                 }
                 script {
-                    def pr = new groovy.json.JsonSlurperClassic().parseText(readFile('pr.json'))
-                    if (pr.state != 'open' || pr.base.ref != 'main' || pr.head.repo.full_name != 'subhankar12-spec/boutique-gitops' || !(pr.head.sha ==~ /[a-f0-9]{40}/)) { error('Expected an open same-repository GitOps PR against main') }
-                    env.PR_HEAD_SHA = pr.head.sha
+                    // Parse on the agent without requiring Groovy constructor/method approvals.
+                    env.PR_HEAD_SHA = sh(returnStdout: true, script: '''python3 - <<'PR'
+import json
+import re
+from pathlib import Path
+
+try:
+    pr = json.loads(Path('pr.json').read_text())
+    sha = pr['head']['sha']
+    valid = (pr['state'] == 'open' and pr['base']['ref'] == 'main'
+             and pr['head']['repo']['full_name'] == 'subhankar12-spec/boutique-gitops'
+             and isinstance(sha, str) and re.fullmatch(r'[a-f0-9]{40}', sha))
+except (ValueError, KeyError, TypeError):
+    valid = False
+if not valid:
+    raise SystemExit('Expected an open same-repository GitOps PR against main')
+print(sha)
+PR
+''').trim()
                 }
                 dir('candidate') { checkout([$class: 'GitSCM', branches: [[name: env.PR_HEAD_SHA]], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]]) }
             }

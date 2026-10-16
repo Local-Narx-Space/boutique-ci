@@ -150,3 +150,10 @@ pipeline files passed Groovy compilation and embedded shell syntax checks.
 A fresh native Jenkins validation was not completed: its core artifact download
 was too slow and was stopped before any controller started. Target-host
 promotion remains to verify.
+
+PR validation now parses GitHub JSON with Python on the agent, replacing the
+Groovy JsonSlurperClassic constructor blocked by the Pipeline sandbox. Ten
+actual parser cases accepted the valid same-repository/main/open PR and rejected
+closed/forked/wrong-base/invalid-digest/malformed inputs. Groovy compilation and
+embedded shell syntax passed; no new plugin or script approval is required.
+Full target-host PR validation remains the acceptance check.
