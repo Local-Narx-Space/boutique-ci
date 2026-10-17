@@ -42,6 +42,17 @@ pipeline {
                 sh 'git diff -- environments > planned-change.diff'
             }
         }
-        stage('Open deployment PR') { steps { gitopsPullRequest(action: 'promote') } }
+        stage('Open deployment PR') {
+            steps { script {
+                int changeStatus = sh(returnStatus: true, script: 'git diff --quiet -- environments')
+                if (changeStatus == 0) {
+                    echo 'Selected release is already deployed; no deployment PR is needed'
+                } else if (changeStatus == 1) {
+                    gitopsPullRequest(action: 'promote')
+                } else {
+                    error('Unable to determine the deployment change')
+                }
+            } }
+        }
     }
 }
