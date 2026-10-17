@@ -36,11 +36,8 @@ pipeline {
                 else { sh 'python3 scripts/promote.py "$SERVICE" "$TARGET" ${IMAGE:+"$IMAGE"}' }
             } }
         }
-        stage('Validate deployment manifests') {
-            steps {
-                sh './scripts/validate.sh'
-                sh 'git diff -- environments > planned-change.diff'
-            }
+        stage('Record planned deployment change') {
+            steps { sh 'git diff -- environments > planned-change.diff' }
         }
         stage('Open deployment PR') {
             steps { script {

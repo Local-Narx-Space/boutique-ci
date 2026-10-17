@@ -182,7 +182,9 @@ def call(Map config) {
             stage('Deliver to dev') {
                 when { expression { isRelease() && config.service != 'incident-bridge' && params.DELIVER_TO_DEV } }
                 steps {
-                    build job: 'boutique-promote', wait: true, propagate: true, parameters: [
+                    // Publishing success and deployment promotion have separate
+                    // evidence; do not make the source build wait for GitOps work.
+                    build job: 'boutique-promote', wait: false, parameters: [
                     string(name: 'TARGET', value: 'dev'),
                     string(name: 'SERVICE', value: config.service),
                     string(name: 'IMAGE', value: env.RELEASE_IMAGE),
