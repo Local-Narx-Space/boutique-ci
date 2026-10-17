@@ -25,9 +25,17 @@ single host is not an independent production failure domain.
    Staging follows the same validation, merge, sync and verification path.
 7. A human selects production promotion after reviewing staging verification.
    Production copies the selected staging artifact without rebuilding. Its PR
-   remains human-reviewed and merged; Argo deploys after merge. Run boutique-verify
-   against the production merge SHA/image after deployment. Automatic triggering
-   of this verification from a manually merged production PR is not wired yet.
+   remains human-reviewed and merged; Argo deploys after merge. After successful validation, boutique-production-verify waits for the unchanged
+   generated production PR to merge, then queues boutique-verify with its merge
+   SHA and exact production image. It never approves or merges the PR. Closing
+   without merge queues nothing; a changed head fails closed and requires fresh
+   validation. The watcher releases its executor between API polls and expires
+   after seven days. Rerun validation to rearm an expired watcher. Duplicate
+   validation runs can queue duplicate verifications; each is read-only apart
+   from the existing synthetic smoke data. Rollbacks and non-generated production
+   changes still require manual verification. Changing global Jenkins environment
+   settings is not a reliable cancellation mechanism for an already-running build;
+   explicitly cancel active watchers in Jenkins when suspending delivery.
 8. Rollback remains a reviewed GitOps PR, never a mutable image overwrite.
 
 Jobs queue downstream verification without waiting while holding an executor.
@@ -70,8 +78,11 @@ Keep BOUTIQUE_RELEASE_AUTOMATION unset until these prerequisites are met:
   environment before enabling automatic advancement. Smoke tests create isolated
   synthetic sessions/orders; allow for that data in your operational procedures.
 - GitHub main protection: require boutique/gitops-validation and code-owner
-  review. Set the blanket approval count to zero so only code-owner-covered
-  paths need human approval. CODEOWNERS retains human ownership for production,
+  review. Use a pull-request ruleset with required approvals set to zero and required
+  code-owner review enabled, so only code-owner-covered paths need approval.
+  If the classic protection UI cannot express this combination, use a ruleset;
+  do not remove production review to make automation pass. Confirm enforcement
+  with both a generated dev PR and a production PR before activation. CODEOWNERS retains human ownership for production,
   scripts and configuration; generated dev/staging release selections explicitly
   have no owners. Do not enable blanket review requirements that block every
   automated release. Use a separate bot identity for PR creation so the human
@@ -100,3 +111,16 @@ closed/draft PRs, path scope, staging, and exclusion of production and rollback.
 Changed Groovy files compile; embedded shell scripts pass bash syntax checks.
 The laptop Application manifests were parsed and checked for automatic policies.
 These checks are not a live Jenkins/GitHub/Kubernetes integration test.
+
+
+## Production watcher rollout
+
+Review this CI change, then pin the existing seed job to its reviewed full commit
+and run with SUPPRESS_AUTOMATIC_BUILDS=true to create boutique-production-verify
+without activating service triggers. Preserve the shared-library pin. Operational
+Jenkinsfiles use main; the watcher needs no new credentials or write permissions.
+Enable automation only after the protection and identity checks above. Successful
+validation must occur while automation is enabled to arm the watcher. Review the
+watcher build and its downstream boutique-verify reports as separate evidence.
+
+GitHub ruleset reference: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets

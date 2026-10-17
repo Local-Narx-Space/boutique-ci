@@ -37,7 +37,8 @@ def main():
     token = args.token_file.read_text().strip()
     if not token or '\n' in token:
         parser.error('Token file must contain exactly one token')
-    headers = {'Authorization': 'Basic ' + base64.b64encode(f'{args.user}:{token}'.encode()).decode()}
+    headers = {'Authorization': 'Basic ' + base64.b64encode(f'{args.user}:{token}'.encode()).decode(),
+               'User-Agent': 'BoutiqueJenkinsClient/1.0', 'Accept': 'application/json'}
     opener = urllib.request.build_opener(NoRedirect(), urllib.request.HTTPCookieProcessor(http.cookiejar.CookieJar()))
     origin = args.url.rstrip('/')
     try:
