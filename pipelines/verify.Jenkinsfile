@@ -21,7 +21,14 @@ pipeline {
                 if (!(params.TARGET in ['dev','staging','production']) || !(params.SERVICE in ['frontend','catalogue','cart','orders'])) { error('Invalid target/service') }
                 if (!(params.GITOPS_COMMIT ==~ /[a-f0-9]{40}/)) { error('Full GitOps commit required') }
                 if (!(params.IMAGE ==~ /ghcr\.io\/subhankar12-spec\/boutique-[a-z-]+@sha256:[a-f0-9]{64}/) || !params.IMAGE.startsWith("ghcr.io/subhankar12-spec/boutique-${params.SERVICE}@")) { error('Expected service digest') }
-                env.BASE_URL = env["BOUTIQUE_${params.TARGET.toUpperCase()}_ORIGIN"]
+                // Explicit properties avoid sandbox-blocked dynamic env indexing.
+                if (params.TARGET == 'dev') {
+                    env.BASE_URL = env.BOUTIQUE_DEV_ORIGIN
+                } else if (params.TARGET == 'staging') {
+                    env.BASE_URL = env.BOUTIQUE_STAGING_ORIGIN
+                } else {
+                    env.BASE_URL = env.BOUTIQUE_PRODUCTION_ORIGIN
+                }
                 if (!env.BASE_URL || !(env.BASE_URL.startsWith('https://') || (params.TARGET == 'dev' && env.BASE_URL == 'http://localhost:8088'))) { error('Configure HTTPS; only laptop dev may use http://localhost:8088') }
             } }
         }
