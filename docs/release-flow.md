@@ -100,6 +100,11 @@ Keep BOUTIQUE_RELEASE_AUTOMATION unset until these prerequisites are met:
   jobs load their Jenkinsfiles from main; the shared library remains explicitly
   pinned and should be upgraded only after review.
 
+The seed declares release-job parameters as well as their Jenkinsfiles, so a
+first API build or a seed rerun remains parameterized. When changing a Pipeline's
+inputs, update its matching entry in `jenkins/jobs/release.groovy` too. The locked
+controller smoke check validates the generated parameter types, choices and defaults.
+
 The activation work above requires the laptop/Jenkins/GitHub administrator. Cloud
 workspace validation does not establish connectivity to the laptop or prove its
 live release flow. Run a small release end to end and retain verification reports.

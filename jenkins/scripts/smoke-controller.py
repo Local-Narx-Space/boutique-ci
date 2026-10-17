@@ -193,6 +193,32 @@ roles.each { role,path ->
  assert management.generated.size() == (role=='release' ? 10 : 11): 'Unexpected job count'
  assert management.generated.containsKey('boutique-production-verify'): 'Production watcher job missing'
  assert management.generated.containsKey('boutique-platform') == (role=='release-with-incident'): 'Adapter build must be opt-in'
+ // First-use API builds and downstream scheduling must work after every seed.
+ def expectedInputs=[
+  promote:['TARGET','SERVICE','IMAGE','RELEASE_BUILD'],
+  verify:['TARGET','SERVICE','IMAGE','GITOPS_COMMIT'],
+  rollback:['TARGET','SERVICE','GITOPS_COMMIT'],
+  'gitops-validate':['PR_NUMBER'],
+  'production-verify':['PR_NUMBER','PR_HEAD_SHA']]
+ expectedInputs.each { job,names ->
+  def document=new XmlParser(false,false).parseText(management.generated['boutique-'+job])
+  def node=document.properties.'hudson.model.ParametersDefinitionProperty'
+  assert node.size()==1: 'Seed must retain exactly one parameter property: '+job
+  def property=Jenkins.XSTREAM2.fromXML(groovy.xml.XmlUtil.serialize(node[0]))
+  assert property.parameterDefinitions*.name==names: 'Seed parameter names/order differ: '+job
+  property.parameterDefinitions.each { input ->
+   if(input.name=='TARGET') {
+    assert input instanceof hudson.model.ChoiceParameterDefinition
+    assert input.choices==['dev','staging','production']
+   } else if(input.name=='SERVICE') {
+    assert input instanceof hudson.model.ChoiceParameterDefinition
+    assert input.choices==['frontend','catalogue','cart','orders']
+   } else {
+    assert input instanceof hudson.model.StringParameterDefinition
+    assert input.defaultParameterValue.value==''
+   }
+  }
+ }
  assert ScriptApproval.get().approvedSignatures.length == 0
  println('JOBDSL_CHECK_PASSED '+role+' count='+management.generated.size()+' sandbox=true approvals=0')
 }
