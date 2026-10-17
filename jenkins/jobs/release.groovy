@@ -37,7 +37,7 @@ services.each { service ->
   triggers { periodicFolderTrigger { interval('1d') } }
  }
 }
-['promote','verify','rollback','gitops-validate'].each { job ->
+['promote','verify','rollback','gitops-validate','production-verify'].each { job ->
  pipelineJob("boutique-${job}") {
   definition {
    cpsScm {

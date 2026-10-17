@@ -71,6 +71,25 @@ PR
                 }
             }
         }
+        stage('Queue human-reviewed production merge watcher') {
+            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
+            steps { script {
+                def production = sh(returnStdout: true, script: '''python3 - <<'PRODUCTION'
+import json
+import re
+from pathlib import Path
+pr = json.loads(Path('pr.json').read_text())
+print('yes' if re.fullmatch(r'jenkins/promote/production/(frontend|catalogue|cart|orders)/[1-9][0-9]*', pr['head']['ref']) else 'no')
+PRODUCTION
+''').trim()
+                if (production == 'yes') {
+                    build job: 'boutique-production-verify', wait: false, parameters: [
+                        string(name: 'PR_NUMBER', value: params.PR_NUMBER),
+                        string(name: 'PR_HEAD_SHA', value: env.PR_HEAD_SHA)
+                    ]
+                }
+            } }
+        }
         stage('Merge validated dev or staging promotion') {
             when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
             steps {
