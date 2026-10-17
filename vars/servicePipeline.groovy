@@ -70,48 +70,51 @@ def call(Map config) {
                                 helm package helm --version "0.1.0-$SOURCE_COMMIT" --app-version "$SOURCE_COMMIT" --destination chart-package
                                 cp "chart-package/boutique-$SERVICE-0.1.0-$SOURCE_COMMIT.tgz" chart.tgz
                             '''
-                            archiveArtifacts artifacts:'chart.tgz,chart-render.yaml',fingerprint:true
                         }
                     }
-                    stage('Test') {
-                        steps {
-                            sh '''set -eu
-                                mkdir -p test-reports
-                                docker build --pull --target test --tag "$TEST_IMAGE" "$BUILD_CONTEXT"
-                                test_user="$(id -u):$(id -g)"
-                                docker_security=$(docker info --format '{{json .SecurityOptions}}')
-                                # Rootless container UID 0 maps to the unprivileged daemon owner.
-                                # Reusing the host UID would map to a subordinate UID instead.
-                                case "$docker_security" in
-                                    *'"name=rootless"'*) test_user=0:0 ;;
-                                esac
-                                docker run --rm --user "$test_user" --env HOME=/tmp \
-                                    --cap-drop ALL --security-opt no-new-privileges:true \
-                                    --mount "type=bind,source=$WORKSPACE/test-reports,target=/reports" "$TEST_IMAGE"
-                            '''
-                        }
-                        post {
-                            always {
-                                script {
-                                    try {
-                                        junit testResults: 'test-reports/**/*.xml', allowEmptyResults: false, skipPublishingChecks: true
-                                    } finally {
-                                        archiveArtifacts artifacts: 'test-reports/**', allowEmptyArchive: true
-                                        sh 'docker image rm "$TEST_IMAGE" >/dev/null 2>&1 || true'
+                    stage('Build and test') {
+                        parallel {
+                            stage('Test') {
+                                steps {
+                                    sh '''set -eu
+                                        mkdir -p test-reports
+                                        docker build --pull --target test --tag "$TEST_IMAGE" "$BUILD_CONTEXT"
+                                        test_user="$(id -u):$(id -g)"
+                                        docker_security=$(docker info --format '{{json .SecurityOptions}}')
+                                        # Rootless container UID 0 maps to the unprivileged daemon owner.
+                                        # Reusing the host UID would map to a subordinate UID instead.
+                                        case "$docker_security" in
+                                            *'"name=rootless"'*) test_user=0:0 ;;
+                                        esac
+                                        docker run --rm --user "$test_user" --env HOME=/tmp \
+                                            --cap-drop ALL --security-opt no-new-privileges:true \
+                                            --mount "type=bind,source=$WORKSPACE/test-reports,target=/reports" "$TEST_IMAGE"
+                                    '''
+                                }
+                                post {
+                                    always {
+                                        script {
+                                            try {
+                                                junit testResults: 'test-reports/**/*.xml', allowEmptyResults: false, skipPublishingChecks: true
+                                            } finally {
+                                                archiveArtifacts artifacts: 'test-reports/**', allowEmptyArchive: true
+                                                sh 'docker image rm "$TEST_IMAGE" >/dev/null 2>&1 || true'
+                                            }
+                                        }
                                     }
                                 }
                             }
-                        }
-                    }
-                    stage('Build image') {
-                        steps {
-                            sh '''
-                        set -eu
-                        export DOCKER_CONFIG="$WORKSPACE/.docker"
-                        mkdir -p "$DOCKER_CONFIG"
-                        docker build --pull --tag "$IMAGE_TAG" "$BUILD_CONTEXT"
-                        printf '%s\n' "$IMAGE_TAG" > image.txt
-                    '''
+                            stage('Build image') {
+                                steps {
+                                    sh '''
+                                set -eu
+                                export DOCKER_CONFIG="$WORKSPACE/.docker"
+                                mkdir -p "$DOCKER_CONFIG"
+                                docker build --pull --tag "$IMAGE_TAG" "$BUILD_CONTEXT"
+                                printf '%s\n' "$IMAGE_TAG" > image.txt
+                            '''
+                                }
+                            }
                         }
                     }
                     stage('Durable queue integration') {
@@ -119,12 +122,15 @@ def call(Map config) {
                         steps { sh 'python3 monitoring/incident-bridge/run-postgres-tests.py --image "$IMAGE_TAG"' }
                     }
                     stage('Security and SBOM') {
-                        steps {
-                            sh '''
-                        set -eu
-                        trivy image --format json --output image-scan.json --ignorefile .trivyignore.yaml --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$IMAGE_TAG"
-                        syft "$IMAGE_TAG" -o cyclonedx-json=sbom.json
-                    '''
+                        parallel {
+                            stage('Image security scan') {
+                                steps {
+                                    sh 'trivy image --format json --output image-scan.json --ignorefile .trivyignore.yaml --exit-code 1 --severity HIGH,CRITICAL --ignore-unfixed "$IMAGE_TAG"'
+                                }
+                            }
+                            stage('Generate SBOM') {
+                                steps { sh 'syft "$IMAGE_TAG" -o cyclonedx-json=sbom.json' }
+                            }
                         }
                     }
                     stage('Publish tested artifact') {
@@ -167,14 +173,13 @@ def call(Map config) {
                                 if (!(env.RELEASE_IMAGE ==~ /ghcr\.io\/subhankar12-spec\/boutique-[a-z-]+@sha256:[a-f0-9]{64}/)) { error('Missing immutable registry digest') }
                             }
                             sh 'printf "%s\\n" "$SOURCE_COMMIT" > source-commit.txt'
-                            archiveArtifacts artifacts: 'image-digest.txt,source-commit.txt,sbom.json,image-scan.json,chart.tgz', fingerprint: true, allowEmptyArchive: true
                         }
                     }
 
                 }
                 post {
                     always {
-                        archiveArtifacts artifacts: 'image.txt,image-digest.txt,source-commit.txt,sbom.json,image-scan.json,chart.tgz', allowEmptyArchive: true
+                        archiveArtifacts artifacts: 'image.txt,image-digest.txt,source-commit.txt,sbom.json,image-scan.json,chart.tgz,chart-render.yaml', allowEmptyArchive: true, fingerprint: true
                         sh 'rm -rf .docker'
                     }
                 }
@@ -182,7 +187,9 @@ def call(Map config) {
             stage('Deliver to dev') {
                 when { expression { isRelease() && config.service != 'incident-bridge' && params.DELIVER_TO_DEV } }
                 steps {
-                    build job: 'boutique-promote', wait: true, propagate: true, parameters: [
+                    // Queue delivery and finish the source build. Promotion and
+                    // deployment status are tracked by their own downstream jobs.
+                    build job: 'boutique-promote', wait: false, parameters: [
                     string(name: 'TARGET', value: 'dev'),
                     string(name: 'SERVICE', value: config.service),
                     string(name: 'IMAGE', value: env.RELEASE_IMAGE),
