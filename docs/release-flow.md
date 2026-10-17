@@ -6,7 +6,8 @@ single host is not an independent production failure domain.
 ## Normal release
 
 1. A protected service main commit triggers its Jenkins Multibranch Pipeline.
-   Tests, image security scan and SBOM run before image/chart publication.
+   Tests, image security scan and SBOM run before image/chart publication. The
+   service job queues delivery without waiting for GitOps validation and deployment.
 2. The service job calls boutique-promote for dev. A generated GitOps PR contains
    only release selection and the service's versioned chart package.
 3. boutique-gitops-validate uses protected validation scripts and validates the
@@ -16,16 +17,20 @@ single host is not an independent production failure domain.
    Code/configuration changes and other service charts cannot auto-merge.
    GitHub's merge API receives the validated head SHA and enforces branch rules;
    no administrator bypass is requested. Conflicts or missing approvals stop it.
+   This required PR check is the full manifest validation; promotion does not run
+   the same matrix a second time before it opens the PR.
 4. Argo CD automatically syncs the merged Git state and self-heals drift.
 5. Validation queues boutique-verify with the exact merge commit, image and
    service. Verification waits for Argo reconciliation and all four deployments,
-   checks the expected digest, and executes the real synthetic smoke suite.
+   checks the expected digest, and executes the real synthetic smoke suite. The
+   rollout wait allows 15 minutes for the approved progressive checks to finish.
 6. Only successful dev verification queues promotion of that digest to staging.
    The promotion fails if dev has meanwhile moved to a different digest.
    Staging follows the same validation, merge, sync and verification path.
-7. A human selects production promotion after reviewing staging verification.
-   Production copies the selected staging artifact without rebuilding. Its PR
-   remains human-reviewed and merged; Argo deploys after merge. After successful validation, boutique-production-verify waits for the unchanged
+7. Only after staging deployment and smoke verification succeed, Jenkins opens a
+   production promotion PR for that exact staging digest. Production copies the
+   selected artifact without rebuilding. A human reviews and merges the PR; Argo
+   deploys after merge. After successful validation, boutique-production-verify waits for the unchanged
    generated production PR to merge, then queues boutique-verify with its merge
    SHA and exact production image. It never approves or merges the PR. Closing
    without merge queues nothing; a changed head fails closed and requires fresh

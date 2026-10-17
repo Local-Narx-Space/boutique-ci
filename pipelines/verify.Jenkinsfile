@@ -47,7 +47,7 @@ pipeline {
                 withCredentials([file(credentialsId:"kubeconfig-${params.TARGET}",variable:'KUBECONFIG')]) {
                     sh '''set -eu
                         mkdir -p reports
-                        python3 platform/scripts/wait-for-deployment.py --environment "$TARGET" --commit "$GITOPS_COMMIT" --service "$SERVICE" --image "$IMAGE" --gitops-root gitops --output reports/synchronized-commit.txt --workloads-output reports/workloads.json --timeout 480
+                        python3 platform/scripts/wait-for-deployment.py --environment "$TARGET" --commit "$GITOPS_COMMIT" --service "$SERVICE" --image "$IMAGE" --gitops-root gitops --output reports/synchronized-commit.txt --workloads-output reports/workloads.json --timeout 900
                         for service in frontend catalogue cart orders; do
                             if [ "$service" = frontend ] && [ "$(python3 -c 'import json; print(json.load(open("reports/workloads.json"))["frontend"])')" = Rollout ]; then
                                 # Protected verifier measured the active Service and stable ReplicaSet.
@@ -86,6 +86,20 @@ pipeline {
                 // IMAGE pins the verified dev digest; promotion fails if dev has moved on.
                 build job: 'boutique-promote', wait: false, parameters: [
                     string(name: 'TARGET', value: 'staging'),
+                    string(name: 'SERVICE', value: params.SERVICE),
+                    string(name: 'IMAGE', value: params.IMAGE),
+                    string(name: 'RELEASE_BUILD', value: '')
+                ]
+            }
+        }
+        stage('Open human-reviewed production promotion') {
+            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'staging' } }
+            steps {
+                // Only a fully deployed and smoke-verified staging digest can
+                // reach this stage. The promotion job opens a production PR;
+                // production still requires a human merge.
+                build job: 'boutique-promote', wait: false, parameters: [
+                    string(name: 'TARGET', value: 'production'),
                     string(name: 'SERVICE', value: params.SERVICE),
                     string(name: 'IMAGE', value: params.IMAGE),
                     string(name: 'RELEASE_BUILD', value: '')
