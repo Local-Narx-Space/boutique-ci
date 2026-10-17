@@ -1,9 +1,6 @@
 // The Pipeline seed defaults to manual builds while initial delivery is configured.
 def suppressBuilds = suppressAutomaticBuilds
 def services = ['frontend','catalogue','cart','orders']
-if (enableIncidentBridgeBuild) {
- services << 'platform'
-}
 services.each { service ->
  multibranchPipelineJob("boutique-${service}") {
   branchSources {
@@ -69,10 +66,4 @@ services.each { service ->
    }
   }
  }
-}
-pipelineJob('boutique-infrastructure') {
- definition { cpsScm {
-  scm { git { remote { url('https://github.com/subhankar12-spec/boutique-infrastructure.git'); credentials('github-read') }; branch('*/main') } }
-  scriptPath('Jenkinsfile'); lightweight(true)
- } }
 }

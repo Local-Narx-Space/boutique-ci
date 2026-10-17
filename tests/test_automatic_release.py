@@ -5,7 +5,7 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location('automatic_release', Path(__file__).with_name('automatic-release.py'))
+spec = importlib.util.spec_from_file_location('automatic_release', Path(__file__).parents[1] / 'scripts/automatic-release.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 

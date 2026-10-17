@@ -11,7 +11,7 @@ RUN source /etc/os-release && test "$ID" = debian && test "$VERSION_CODENAME" = 
     && rm -f /etc/apt/sources.list /etc/apt/sources.list.d/*.sources \
     && printf 'deb [check-valid-until=no signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://snapshot.debian.org/archive/debian/%s trixie main\ndeb [check-valid-until=no signed-by=/usr/share/keyrings/debian-archive-keyring.gpg] https://snapshot.debian.org/archive/debian-security/%s trixie-security main\n' "$DEBIAN_SNAPSHOT" "$DEBIAN_SNAPSHOT" > /etc/apt/sources.list \
     && apt-get update \
-    && apt-get install -y --no-install-recommends python3 python3-yaml git curl ca-certificates jq openssl unzip awscli \
+    && apt-get install -y --no-install-recommends python3 python3-yaml git curl ca-certificates jq openssl \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=dockercli /usr/local/bin/docker /usr/local/bin/docker
 COPY --from=dockercli /usr/local/libexec/docker/cli-plugins /usr/local/libexec/docker/cli-plugins
@@ -19,6 +19,6 @@ COPY jenkins/scripts/install-agent-tools.py /usr/local/lib/boutique/install-agen
 RUN python3 /usr/local/lib/boutique/install-agent-tools.py --destination /opt/boutique-agent-tools \
     && python3 /usr/local/lib/boutique/install-agent-tools.py --destination /opt/boutique-agent-tools --verify-only \
     && docker --version && docker buildx version && java -version \
-    && python3 -c 'import yaml' && openssl version && aws --version
+    && python3 -c 'import yaml' && openssl version
 ENV PATH="/opt/boutique-agent-tools/bin:${PATH}"
 USER jenkins

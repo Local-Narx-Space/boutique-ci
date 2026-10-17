@@ -1,5 +1,5 @@
 def call(Map config) {
-    def allowed = ['frontend', 'catalogue', 'cart', 'orders', 'incident-bridge']
+    def allowed = ['frontend', 'catalogue', 'cart', 'orders']
     if (!(config.service in allowed)) { error('Unsupported service') }
     def isRelease = { env.BOUTIQUE_CONTROLLER_ROLE == 'release' && env.BRANCH_NAME == 'main' && !env.CHANGE_ID }
     pipeline {
@@ -31,7 +31,6 @@ def call(Map config) {
                                     error('Release controller accepts protected main branch builds only')
                                 }
                                 env.SOURCE_COMMIT = sh(script: 'git rev-parse HEAD', returnStdout: true).trim()
-                                env.BUILD_CONTEXT = config.service == 'incident-bridge' ? 'monitoring/incident-bridge' : '.'
                                 env.IMAGE_TAG = "${env.REGISTRY}/${env.GITHUB_OWNER}/boutique-${config.service}:${env.SOURCE_COMMIT}"
                                 env.TEST_IMAGE = "${env.IMAGE_TAG}-test"
                                 // A numeric agent UID may inherit HOME=/; keep tool state private and writable.
@@ -51,16 +50,11 @@ def call(Map config) {
                         // Secret detection needs source files, not remote Maven dependency resolution.
                         steps { sh 'trivy fs --scanners secret --offline-scan --skip-version-check --exit-code 1 --severity HIGH,CRITICAL .' }
                     }
-                    stage('Monitoring configuration') {
-                        when { expression { config.service == 'incident-bridge' } }
-                        steps { sh 'bash monitoring/validate.sh' }
-                    }
                     stage('AWS trust bundle') {
                         when { expression { isRelease() && config.service == 'orders' } }
                         steps { sh 'cd certs && sha256sum -c global-bundle.sha256 && openssl crl2pkcs7 -nocrl -certfile global-bundle.pem | openssl pkcs7 -print_certs -noout >/dev/null' }
                     }
                     stage('Helm validation and packaging') {
-                        when { expression { config.service != 'incident-bridge' } }
                         steps {
                             sh '''set -eu
                                 helm lint --strict helm
@@ -78,7 +72,7 @@ def call(Map config) {
                                 steps {
                                     sh '''set -eu
                                         mkdir -p test-reports
-                                        docker build --pull --target test --tag "$TEST_IMAGE" "$BUILD_CONTEXT"
+                                        docker build --pull --target test --tag "$TEST_IMAGE" .
                                         test_user="$(id -u):$(id -g)"
                                         docker_security=$(docker info --format '{{json .SecurityOptions}}')
                                         # Rootless container UID 0 maps to the unprivileged daemon owner.
@@ -110,16 +104,12 @@ def call(Map config) {
                                 set -eu
                                 export DOCKER_CONFIG="$WORKSPACE/.docker"
                                 mkdir -p "$DOCKER_CONFIG"
-                                docker build --pull --tag "$IMAGE_TAG" "$BUILD_CONTEXT"
+                                docker build --pull --tag "$IMAGE_TAG" .
                                 printf '%s\n' "$IMAGE_TAG" > image.txt
                             '''
                                 }
                             }
                         }
-                    }
-                    stage('Durable queue integration') {
-                        when { expression { config.service == 'incident-bridge' } }
-                        steps { sh 'python3 monitoring/incident-bridge/run-postgres-tests.py --image "$IMAGE_TAG"' }
                     }
                     stage('Security and SBOM') {
                         parallel {
@@ -137,8 +127,7 @@ def call(Map config) {
                         when { expression { isRelease() } }
                         steps {
                             withCredentials([usernamePassword(credentialsId: 'ghcr-publish', usernameVariable: 'REGISTRY_USER', passwordVariable: 'REGISTRY_TOKEN')]) {
-                                sh '''
-                            set +x
+                                sh '''set +x
                             set -eu
                             export DOCKER_CONFIG="$WORKSPACE/.docker"
                             export HELM_REGISTRY_CONFIG="$DOCKER_CONFIG/helm-registry.json"
@@ -152,20 +141,16 @@ def call(Map config) {
                                 echo 'Cannot establish registry tag availability; refusing publication.'
                                 exit 1
                             fi
-                            if [ "$SERVICE" != incident-bridge ]; then
-                                printf '%s' "$REGISTRY_TOKEN" | helm registry login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
-                                if helm show chart "oci://$REGISTRY/$GITHUB_OWNER/charts/boutique-$SERVICE" --version "0.1.0-$SOURCE_COMMIT" >/dev/null 2> chart-registry-check.log; then
-                                    echo 'Chart version already exists; refusing to overwrite it.'; exit 1
-                                fi
-                                if ! grep -Eqi 'manifest unknown|not found|NAME_UNKNOWN|MANIFEST_UNKNOWN|404' chart-registry-check.log; then
-                                    echo 'Cannot establish chart version availability; refusing publication.'; exit 1
-                                fi
+                            printf '%s' "$REGISTRY_TOKEN" | helm registry login "$REGISTRY" -u "$REGISTRY_USER" --password-stdin
+                            if helm show chart "oci://$REGISTRY/$GITHUB_OWNER/charts/boutique-$SERVICE" --version "0.1.0-$SOURCE_COMMIT" >/dev/null 2> chart-registry-check.log; then
+                                echo 'Chart version already exists; refusing to overwrite it.'; exit 1
+                            fi
+                            if ! grep -Eqi 'manifest unknown|not found|NAME_UNKNOWN|MANIFEST_UNKNOWN|404' chart-registry-check.log; then
+                                echo 'Cannot establish chart version availability; refusing publication.'; exit 1
                             fi
                             docker push "$IMAGE_TAG"
                             docker inspect --format '{{index .RepoDigests 0}}' "$IMAGE_TAG" > image-digest.txt
-                            if [ "$SERVICE" != incident-bridge ]; then
-                                helm push "chart-package/boutique-$SERVICE-0.1.0-$SOURCE_COMMIT.tgz" "oci://$REGISTRY/$GITHUB_OWNER/charts" > chart-push.log 2>&1
-                            fi
+                            helm push "chart-package/boutique-$SERVICE-0.1.0-$SOURCE_COMMIT.tgz" "oci://$REGISTRY/$GITHUB_OWNER/charts" > chart-push.log 2>&1
                         '''
                             }
                             script {
@@ -185,7 +170,7 @@ def call(Map config) {
                 }
             }
             stage('Deliver to dev') {
-                when { expression { isRelease() && config.service != 'incident-bridge' && params.DELIVER_TO_DEV } }
+                when { expression { isRelease() && params.DELIVER_TO_DEV } }
                 steps {
                     // Queue delivery and finish the source build. Promotion and
                     // deployment status are tracked by their own downstream jobs.

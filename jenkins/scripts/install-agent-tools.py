@@ -15,18 +15,16 @@ import tarfile
 import tempfile
 import urllib.parse
 import urllib.request
-import zipfile
 
 TOOLS = {
     "helm": dict(version="3.22.0", url="https://get.helm.sh/helm-v3.22.0-linux-amd64.tar.gz", sha256="1e4ab49e429626cf6c6958d914248b78c9730803c2751b87627e171dc800e7bb", kind="tar", member="linux-amd64/helm", args=["version", "--short"]),
     "kubectl": dict(version="1.34.0", url="https://dl.k8s.io/release/v1.34.0/bin/linux/amd64/kubectl", sha256="cfda68cba5848bc3b6c6135ae2f20ba2c78de20059f68789c090166d6abc3e2c", kind="binary", args=["version", "--client=true"]),
-    "terraform": dict(version="1.11.4", url="https://releases.hashicorp.com/terraform/1.11.4/terraform_1.11.4_linux_amd64.zip", sha256="1ce994251c00281d6845f0f268637ba50c0005657eb3cf096b92f753b42ef4dc", kind="zip", member="terraform", args=["version"]),
     "kubeconform": dict(version="0.6.7", url="https://github.com/yannh/kubeconform/releases/download/v0.6.7/kubeconform-linux-amd64.tar.gz", sha256="95f14e87aa28c09d5941f11bd024c1d02fdc0303ccaa23f61cef67bc92619d73", kind="tar", member="kubeconform", args=["-v"]),
     "trivy": dict(version="0.75.0", url="https://github.com/aquasecurity/trivy/releases/download/v0.75.0/trivy_0.75.0_Linux-64bit.tar.gz", sha256="c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f", kind="tar", member="trivy", args=["--version"]),
     "syft": dict(version="1.54.1", url="https://github.com/anchore/syft/releases/download/v1.54.1/syft_1.54.1_linux_amd64.tar.gz", sha256="c069905b391cc4c20a5ba65ad5c10be2a7ba074f8ea6ad203e24d14e303dad47", kind="tar", member="syft", args=["version"]),
     "gh": dict(version="2.102.0", url="https://github.com/cli/cli/releases/download/v2.102.0/gh_2.102.0_linux_amd64.tar.gz", sha256="bb766f710eef8ede859c18578c72c327597cd4c8a85b06001b1f3843c6019386", kind="tar", member="gh_2.102.0_linux_amd64/bin/gh", args=["--version"]),
 }
-ORIGINS = {"get.helm.sh","dl.k8s.io", "cdn.dl.k8s.io", "releases.hashicorp.com", "github.com",
+ORIGINS = {"get.helm.sh","dl.k8s.io", "cdn.dl.k8s.io", "github.com",
            "release-assets.githubusercontent.com", "objects.githubusercontent.com"}
 
 
@@ -64,9 +62,6 @@ def install(name, tool, archive_path, root):
     executable = root / "bin" / name
     if tool["kind"] == "binary":
         shutil.copyfile(archive_path, executable)
-    elif tool["kind"] == "zip":
-        with zipfile.ZipFile(archive_path) as archive, archive.open(tool["member"]) as source, executable.open("wb") as output:
-            shutil.copyfileobj(source, output)
     elif tool["kind"] == "tar":
         with tarfile.open(archive_path) as archive:
             member = archive.getmember(tool["member"])
