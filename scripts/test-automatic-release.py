@@ -44,6 +44,18 @@ class Authorization(unittest.TestCase):
                      'environments/production/releases.yaml']:
             self.paths=[path]
             with self.subTest(path=path),self.assertRaises(ValueError):self.call()
+    def test_app_bot_requires_matching_app_identity(self):
+        self.pr['user']={'login':'boutique-jenkins-bot[bot]','type':'Bot','id':343828366}
+        self.assertEqual(module.request(self.pr,'boutique-jenkins-bot[bot]',self.sha,self.paths,343828366)['target'],'dev')
+        for actor_id in [None, '', 1234]:
+            self.pr['user']['id']=actor_id
+            with self.subTest(actor_id=actor_id), self.assertRaises(ValueError):
+                module.request(self.pr,'boutique-jenkins-bot[bot]',self.sha,self.paths,343828366)
+        self.pr['user']['id']=343828366
+        self.pr['user']['type']='User'
+        with self.assertRaises(ValueError):
+            module.request(self.pr,'boutique-jenkins-bot[bot]',self.sha,self.paths,343828366)
+
     def test_empty_diff_rejected(self):
         self.paths=[]
         with self.assertRaises(ValueError):self.call()

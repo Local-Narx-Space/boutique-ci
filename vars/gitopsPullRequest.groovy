@@ -1,5 +1,6 @@
 def call(Map config) {
     def action = config.action
+    def credentialId = env.BOUTIQUE_GITOPS_PR_CREDENTIAL ?: 'gitops-pr'
     if (!(action in ['promote','rollback']) || !(params.SERVICE in ['frontend','catalogue','cart','orders']) || !(params.TARGET in ['dev','staging','production'])) {
         error('Invalid GitOps request')
     }
@@ -13,7 +14,7 @@ Review the image digest, chart package, validation result and database migration
 For promotion, confirm the preceding environment's rollout and smoke tests passed.
 Dev/staging bot promotion PRs may merge automatically after successful validation when release automation is enabled. Production and rollback require review. Argo CD deploys merged changes.
 """
-    withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
+    withCredentials([usernamePassword(credentialsId: credentialId, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
         withEnv(["GITOPS_ACTION=${action}", "SERVICE=${params.SERVICE}", "TARGET=${params.TARGET}"]) {
             sh '''set +x
                 set -eu
@@ -35,7 +36,7 @@ Dev/staging bot promotion PRs may merge automatically after successful validatio
             '''
         }
     }
-    withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
+    withCredentials([usernamePassword(credentialsId: credentialId, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
         sh 'set +x; gh pr view --repo subhankar12-spec/boutique-gitops "$(cat gitops-pr-url.txt)" --json number --jq .number > gitops-pr-number.txt'
     }
     def number = readFile('gitops-pr-number.txt').trim()

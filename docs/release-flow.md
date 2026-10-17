@@ -124,3 +124,30 @@ validation must occur while automation is enabled to arm the watcher. Review the
 watcher build and its downstream boutique-verify reports as separate evidence.
 
 GitHub ruleset reference: https://docs.github.com/en/repositories/configuring-branches-and-merges-in-your-repository/managing-rulesets/available-rules-for-rulesets
+
+## Independent GitHub App promotion identity
+
+Install the release App on boutique-gitops only, with Contents and Pull requests
+write and Metadata read. Keep the GitOps validation-status token separate. Add a
+new Jenkins GitHub App credential `gitops-release-app`, using a specific owner and
+repository access strategy. Do not overwrite existing credentials during migration.
+
+After the reviewed CI/library revision is installed and the App credential is
+verified on the agent, select it through Jenkins global environment:
+
+```text
+BOUTIQUE_GITOPS_PR_CREDENTIAL=gitops-release-app
+BOUTIQUE_GITOPS_BOT_LOGIN=boutique-jenkins-bot[bot]
+BOUTIQUE_GITOPS_APP_ID=5354383
+BOUTIQUE_GITOPS_BOT_ID=343828366
+```
+
+Unset selection preserves the previous `gitops-pr` behavior. App selection avoids
+`GET /user`, which requires a human token. Automatic promotion checks both the bot
+login/type and numeric actor ID, plus the Jenkins credential username against
+the configured App ID, in
+addition to existing unchanged-head, repository, branch and path restrictions.
+Neither configuration nor identity verification enables release automation.
+Production and rollback remain human-reviewed. Never grant the App administration
+or review-bypass access. Verify protected-path review and generated-path behavior
+on an isolated branch before changing main protection.

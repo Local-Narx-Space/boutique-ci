@@ -10,6 +10,14 @@ pipeline {
         stage('Validate request') {
             steps { script {
                 if (env.BOUTIQUE_CONTROLLER_ROLE != 'release' || !(params.PR_NUMBER ==~ /[1-9][0-9]*/)) { error('Reviewed controller and numeric PR required') }
+                env.GITOPS_PR_CREDENTIAL = env.BOUTIQUE_GITOPS_PR_CREDENTIAL ?: 'gitops-pr'
+                env.GITOPS_BOT_LOGIN = env.BOUTIQUE_GITOPS_BOT_LOGIN ?: ''
+                env.GITOPS_APP_ID = env.BOUTIQUE_GITOPS_APP_ID ?: ''
+                env.GITOPS_BOT_ID = env.BOUTIQUE_GITOPS_BOT_ID ?: ''
+                if (env.GITOPS_PR_CREDENTIAL == 'gitops-release-app' &&
+                    (!(env.GITOPS_BOT_LOGIN ==~ /[a-zA-Z0-9-]+\[bot\]/) || !(env.GITOPS_APP_ID ==~ /[1-9][0-9]*/) || !(env.GITOPS_BOT_ID ==~ /[1-9][0-9]*/))) {
+                    error('Configure the expected App bot login, numeric actor ID and App ID before selecting its credential')
+                }
             } }
         }
         stage('Fetch protected tools and PR revision') {
@@ -93,12 +101,19 @@ PRODUCTION
         stage('Merge validated dev or staging promotion') {
             when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
             steps {
-                withCredentials([usernamePassword(credentialsId: 'gitops-pr', usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
                         gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
-                        BOT=$(gh api user --jq .login)
-                        python3 automation/scripts/automatic-release.py --pr current-pr.json --bot "$BOT" --head "$PR_HEAD_SHA" --candidate candidate > automatic-release.json
+                        if [ -n "$GITOPS_APP_ID" ]; then
+                            test "$GIT_USER" = "$GITOPS_APP_ID"
+                            BOT="$GITOPS_BOT_LOGIN"
+                        else
+                            BOT=$(gh api user --jq .login)
+                        fi
+                        set -- --pr current-pr.json --bot "$BOT" --head "$PR_HEAD_SHA" --candidate candidate
+                        if [ -n "$GITOPS_APP_ID" ]; then set -- "$@" --bot-id "$GITOPS_BOT_ID"; fi
+                        python3 automation/scripts/automatic-release.py "$@" > automatic-release.json
                         if [ "$(cat automatic-release.json)" = null ]; then
                             echo 'Human-reviewed change: automatic merge skipped.'
                             exit 0
