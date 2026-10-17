@@ -190,17 +190,18 @@ roles.each { role,path ->
    }
   }
  }
- assert management.generated.size() == (role=='release' ? 9 : 10): 'Unexpected job count'
+ assert management.generated.size() == (role=='release' ? 10 : 11): 'Unexpected job count'
+ assert management.generated.containsKey('boutique-production-verify'): 'Production watcher job missing'
  assert management.generated.containsKey('boutique-platform') == (role=='release-with-incident'): 'Adapter build must be opt-in'
  assert ScriptApproval.get().approvedSignatures.length == 0
  println('JOBDSL_CHECK_PASSED '+role+' count='+management.generated.size()+' sandbox=true approvals=0')
 }
 ''')
             (runtime / 'job-dsl-check.txt').write_text(result)
-            if 'JOBDSL_CHECK_PASSED release count=9' not in result or 'JOBDSL_CHECK_PASSED release-with-incident count=10' not in result:
+            if 'JOBDSL_CHECK_PASSED release count=10' not in result or 'JOBDSL_CHECK_PASSED release-with-incident count=11' not in result:
                 raise RuntimeError('JobDSL validation failed; inspect job-dsl-check.txt')
             print(result.strip())
-            report['jobDslGeneratedJobs'] = {'default': 9, 'withIncidentBridge': 10}
+            report['jobDslGeneratedJobs'] = {'default': 10, 'withIncidentBridge': 11}
             report['jobDslSandbox'] = True
             report['jobDslCustomMethodApprovals'] = 0
 
@@ -223,6 +224,30 @@ roles.each { role,path ->
                 ET.SubElement(node, 'sandbox').text = 'true'
                 ET.SubElement(node, 'script').text = script
                 request('/createItem?name=' + name, ET.tostring(definition), 'application/xml')
+
+            # Exercise the actual watcher guard without SCM, credentials, or an agent.
+            watcher = (ROOT / 'pipelines/production-verify.Jenkinsfile').read_text()
+            create_job('isolated-production-watcher-disabled',
+                       "env.BOUTIQUE_CONTROLLER_ROLE='release'\nenv.BOUTIQUE_RELEASE_AUTOMATION='false'\n" + watcher)
+            request('/job/isolated-production-watcher-disabled/build', b'', 'application/x-www-form-urlencoded')
+            for _ in range(120):
+                try:
+                    build = json.loads(request('/job/isolated-production-watcher-disabled/1/api/json?tree=result,building'))
+                    if not build['building']:
+                        console = request('/job/isolated-production-watcher-disabled/1/consoleText').decode()
+                        if build['result'] != 'FAILURE' or 'Enabled release controller required' not in console:
+                            raise RuntimeError('Disabled watcher did not fail at the automation guard')
+                        if '[Pipeline] node' in console or 'Scheduling project:' in console:
+                            raise RuntimeError('Disabled watcher acquired an agent or scheduled verification')
+                        report['productionWatcherDisabledGuard'] = True
+                        print('Actual production watcher: disabled guard passed; no agent or downstream job')
+                        break
+                except urllib.error.HTTPError as exc:
+                    if exc.code != 404:
+                        raise
+                time.sleep(.5)
+            else:
+                raise RuntimeError('Disabled watcher check exceeded 60 seconds')
 
             create_job('isolated-verification-check', """pipeline {
  agent none

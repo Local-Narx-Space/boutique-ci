@@ -33,7 +33,9 @@ single host is not an independent production failure domain.
    after seven days. Rerun validation to rearm an expired watcher. Duplicate
    validation runs can queue duplicate verifications; each is read-only apart
    from the existing synthetic smoke data. Rollbacks and non-generated production
-   changes still require manual verification.
+   changes still require manual verification. Changing global Jenkins environment
+   settings is not a reliable cancellation mechanism for an already-running build;
+   explicitly cancel active watchers in Jenkins when suspending delivery.
 8. Rollback remains a reviewed GitOps PR, never a mutable image overwrite.
 
 Jobs queue downstream verification without waiting while holding an executor.

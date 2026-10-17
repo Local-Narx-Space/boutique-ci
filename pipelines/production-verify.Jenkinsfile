@@ -14,7 +14,7 @@ pipeline {
             steps { script {
                 if (env.BOUTIQUE_CONTROLLER_ROLE != 'release' || env.BOUTIQUE_RELEASE_AUTOMATION != 'true') { error('Enabled release controller required') }
                 if (!(params.PR_NUMBER ==~ /[1-9][0-9]*/) || !(params.PR_HEAD_SHA ==~ /[a-f0-9]{40}/)) { error('Numeric PR and full validated head required') }
-                // No executor is held between polls. Each API check uses read-only credentials.
+                // No executor is held between polls. Each API check makes only read requests with gitops-checks.
                 waitUntil(initialRecurrencePeriod: 60000, quiet: true) {
                     if (env.BOUTIQUE_RELEASE_AUTOMATION != 'true') { error('Release automation disabled while waiting') }
                     def finished = false
