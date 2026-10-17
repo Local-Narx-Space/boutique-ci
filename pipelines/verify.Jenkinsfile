@@ -47,9 +47,14 @@ pipeline {
                 withCredentials([file(credentialsId:"kubeconfig-${params.TARGET}",variable:'KUBECONFIG')]) {
                     sh '''set -eu
                         mkdir -p reports
-                        python3 platform/scripts/wait-for-deployment.py --environment "$TARGET" --commit "$GITOPS_COMMIT" --service "$SERVICE" --image "$IMAGE" --gitops-root gitops --output reports/synchronized-commit.txt --timeout 480
+                        python3 platform/scripts/wait-for-deployment.py --environment "$TARGET" --commit "$GITOPS_COMMIT" --service "$SERVICE" --image "$IMAGE" --gitops-root gitops --output reports/synchronized-commit.txt --workloads-output reports/workloads.json --timeout 480
                         for service in frontend catalogue cart orders; do
-                            kubectl -n "boutique-$TARGET" rollout status "deployment/$service" --timeout=180s
+                            if [ "$service" = frontend ] && [ "$(python3 -c 'import json; print(json.load(open("reports/workloads.json"))["frontend"])')" = Rollout ]; then
+                                # Protected verifier measured the active Service and stable ReplicaSet.
+                                kubectl -n "boutique-$TARGET" get rollout.argoproj.io frontend -o json > reports/frontend-rollout.json
+                            else
+                                kubectl -n "boutique-$TARGET" rollout status "deployment/$service" --timeout=180s
+                            fi
                         done
                     '''
                 }
