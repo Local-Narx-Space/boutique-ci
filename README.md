@@ -15,6 +15,9 @@ For application services, `DELIVER_TO_DEV=true` opens a GitOps PR via
 Jenkins does not merge the PR or directly deploy application manifests.
 The Jenkins manifest check validates the PR; protected review/merge and Argo CD
 perform delivery. A published build is not proof of successful deployment.
+Publishing does not wait for delivery. The full manifest matrix runs once on the
+exact PR head in `boutique-gitops-validate`, rather than once before PR creation
+and again as the required PR check.
 
 | Job | Purpose |
 | --- | --- |
@@ -104,3 +107,8 @@ still scans source files (including POM files) for secrets, but does not query
 Maven Central to identify dependencies for this secret-only stage. The runtime
 image vulnerability/secret scan remains unchanged. Respect repository Retry-After
 responses; later Maven dependency downloads still require repository access.
+
+Runtime image construction and unit tests run in parallel on the same checked-out
+commit. Image scanning and SBOM generation also run in parallel. Publication
+waits for every branch to pass; no additional Jenkins executors are requested.
+Release evidence is archived once, including when a stage fails.

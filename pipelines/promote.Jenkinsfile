@@ -36,8 +36,11 @@ pipeline {
                 else { sh 'python3 scripts/promote.py "$SERVICE" "$TARGET" ${IMAGE:+"$IMAGE"}' }
             } }
         }
-        stage('Record planned deployment change') {
-            steps { sh 'git diff -- environments > planned-change.diff' }
+        stage('Record planned change') {
+            steps {
+                // The required PR validator checks the exact candidate once.
+                sh 'git diff -- environments > planned-change.diff'
+            }
         }
         stage('Open deployment PR') {
             steps { script {

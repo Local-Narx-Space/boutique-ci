@@ -45,9 +45,12 @@ single host is not an independent production failure domain.
 
 Jobs queue downstream verification without waiting while holding an executor.
 Verification also queues promotion without waiting, preventing executor deadlocks.
-A service publishing build queues dev delivery; downstream job history and
-verification reports are separate evidence. Publishing success is not a claim
-that staging or production verification succeeded.
+A service publishing build queues dev delivery without waiting. Promotion and
+rollback PRs are validated once, against the exact candidate head, by
+boutique-gitops-validate; the PR job is the required full manifest gate.
+Downstream job history and verification reports are separate evidence.
+Publishing success is not a claim that delivery or deployment verification
+succeeded.
 
 ## One-time activation and bootstrap
 
