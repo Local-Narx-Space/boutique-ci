@@ -8,8 +8,6 @@ pipeline {
         buildDiscarder(logRotator(numToKeepStr: '20'))
     }
     parameters {
-        booleanParam(name: 'ENABLE_INCIDENT_BRIDGE_BUILD', defaultValue: false,
-            description: 'Create the optional ServiceNow adapter build job only when needed.')
         booleanParam(name: 'SUPPRESS_AUTOMATIC_BUILDS', defaultValue: true,
             description: 'Keep service builds manual during bootstrap; disable after delivery is configured.')
     }
@@ -33,8 +31,7 @@ pipeline {
                     failOnMissingPlugin: true,
                     removedJobAction: 'IGNORE',
                     removedViewAction: 'IGNORE',
-                    additionalParameters: [suppressAutomaticBuilds: params.SUPPRESS_AUTOMATIC_BUILDS,
-                        enableIncidentBridgeBuild: params.ENABLE_INCIDENT_BRIDGE_BUILD]
+                    additionalParameters: [suppressAutomaticBuilds: params.SUPPRESS_AUTOMATIC_BUILDS]
             }
         }
     }

@@ -8,7 +8,7 @@ import tempfile
 import unittest
 from unittest.mock import patch
 
-SPEC = importlib.util.spec_from_file_location("tools", Path(__file__).with_name("install-agent-tools.py"))
+SPEC = importlib.util.spec_from_file_location("tools", Path(__file__).parents[1] / "jenkins/scripts/install-agent-tools.py")
 tools = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(tools)
 
