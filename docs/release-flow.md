@@ -58,7 +58,7 @@ Keep BOUTIQUE_RELEASE_AUTOMATION unset until these prerequisites are met:
 - Configure Jenkins environment variables:
 
   ```text
-  BOUTIQUE_DEV_ORIGIN=https://boutique.narx.space
+  BOUTIQUE_DEV_ORIGIN=https://dev-boutique.narx.space
   BOUTIQUE_STAGING_ORIGIN=https://staging-boutique.narx.space
   BOUTIQUE_PRODUCTION_ORIGIN=https://shop.narx.space
   ```
