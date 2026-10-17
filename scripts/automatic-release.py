@@ -10,7 +10,7 @@ REPO = 'subhankar12-spec/boutique-gitops'
 BRANCH = re.compile(r'jenkins/promote/(dev|staging)/(frontend|catalogue|cart|orders)/[1-9][0-9]*')
 
 
-def request(pr, bot, head, paths):
+def request(pr, bot, head, paths, bot_id=None):
     match = BRANCH.fullmatch(pr.get('head', {}).get('ref', ''))
     if not match:
         return None  # Production, rollback and human configuration PRs require review.
@@ -21,6 +21,12 @@ def request(pr, bot, head, paths):
             or pr.get('head', {}).get('sha') != head
             or not re.fullmatch(r'[a-f0-9]{40}', head)):
         raise ValueError('Automatic promotion requires the validated bot-owned PR head')
+    if bot_id is not None:
+        if (not re.fullmatch(r'[1-9][0-9]*', str(bot_id))
+                or not re.fullmatch(r'[a-zA-Z0-9-]+\[bot\]', bot)
+                or pr.get('user', {}).get('type') != 'Bot'
+                or str(pr.get('user', {}).get('id')) != str(bot_id)):
+            raise ValueError('Automatic App promotion requires the expected bot login and numeric actor ID')
     target, service = match.groups()
     allowed = re.compile(rf'environments/{target}/(?:Chart\.yaml|releases\.yaml|charts/boutique-{service}-[^/]+\.tgz)')
     if not paths or any(not allowed.fullmatch(path) for path in paths):
@@ -34,11 +40,12 @@ def main():
     p.add_argument('--bot', required=True)
     p.add_argument('--head', required=True)
     p.add_argument('--candidate', required=True)
+    p.add_argument('--bot-id', help='Expected numeric bot actor ID when using installation authentication')
     args = p.parse_args()
     paths = subprocess.check_output(['git', '-C', args.candidate, 'diff', '--name-only',
                                      'origin/main...HEAD'], text=True).splitlines()
     try:
-        result = request(json.loads(Path(args.pr).read_text()), args.bot, args.head, paths)
+        result = request(json.loads(Path(args.pr).read_text()), args.bot, args.head, paths, args.bot_id)
     except (ValueError, TypeError, KeyError) as error:
         raise SystemExit(str(error))
     print(json.dumps(result))
