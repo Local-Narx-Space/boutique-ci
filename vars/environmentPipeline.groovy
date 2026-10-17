@@ -1,11 +1,14 @@
+def call(Map config) {
 pipeline {
     agent { label 'trusted-release' }
     options { timestamps();timeout(time:20,unit:'MINUTES');disableConcurrentBuilds();skipDefaultCheckout(true) }
     parameters {
-        choice(name:'TARGET',choices:['dev','staging','production'])
-        choice(name:'SERVICE',choices:['frontend','catalogue','cart','orders'])
-        string(name:'IMAGE',defaultValue:'',description:'Exact immutable image expected in the selected service')
-        string(name:'GITOPS_COMMIT',defaultValue:'',description:'Full reviewed GitOps merge commit')
+        choice(name:'ACTION', choices:['promote','verify'], description:'Request a release PR or verify the merged release')
+        choice(name:'TARGET', choices:[config.target])
+        choice(name:'SERVICE', choices:['frontend','catalogue','cart','orders'])
+        string(name:'IMAGE', defaultValue:'', description:'Immutable service image digest')
+        string(name:'RELEASE_BUILD', defaultValue:'', description:'Dev publishing build number')
+        string(name:'GITOPS_COMMIT', defaultValue:'', description:'Merged GitOps commit for verification')
     }
     // Bind validated request parameters explicitly, including the first triggered build.
     environment {
@@ -13,11 +16,20 @@ pipeline {
         SERVICE = "${params.SERVICE}"
         IMAGE = "${params.IMAGE}"
         GITOPS_COMMIT = "${params.GITOPS_COMMIT}"
+        RELEASE_BUILD = "${params.RELEASE_BUILD}"
     }
     stages {
-        stage('Validate verification target') {
+        stage('Validate request') {
             steps { script {
                 if (env.BOUTIQUE_CONTROLLER_ROLE != 'release') { error('Reviewed release controller required') }
+                if (params.TARGET != config.target) { error('This pipeline is restricted to its configured environment') }
+                if (!(params.ACTION in ['promote','verify'])) { error('Invalid deployment action') }
+                currentBuild.displayName = "#${env.BUILD_NUMBER} ${params.ACTION} ${params.SERVICE}"
+                if (params.ACTION == 'promote') {
+                if (!(params.TARGET in ['dev','staging','production']) || !(params.SERVICE in ['frontend','catalogue','cart','orders'])) { error('Invalid target/service') }
+                if (params.IMAGE && !(params.IMAGE ==~ /ghcr\.io\/subhankar12-spec\/boutique-[a-z-]+@sha256:[a-f0-9]{64}/)) { error('Expected immutable image digest') }
+                if (params.TARGET == 'dev' && !params.IMAGE) { error('Dev requires the publishing build image digest') }
+                } else {
                 if (!(params.TARGET in ['dev','staging','production']) || !(params.SERVICE in ['frontend','catalogue','cart','orders'])) { error('Invalid target/service') }
                 if (!(params.GITOPS_COMMIT ==~ /[a-f0-9]{40}/)) { error('Full GitOps commit required') }
                 if (!(params.IMAGE ==~ /ghcr\.io\/subhankar12-spec\/boutique-[a-z-]+@sha256:[a-f0-9]{64}/) || !params.IMAGE.startsWith("ghcr.io/subhankar12-spec/boutique-${params.SERVICE}@")) { error('Expected service digest') }
@@ -30,28 +42,55 @@ pipeline {
                     env.BASE_URL = env.BOUTIQUE_PRODUCTION_ORIGIN
                 }
                 if (!env.BASE_URL || !(env.BASE_URL.startsWith('https://') || (params.TARGET == 'dev' && env.BASE_URL == 'http://localhost:8088'))) { error('Configure HTTPS; only laptop dev may use http://localhost:8088') }
+                }
             } }
         }
-        stage('Checkout protected verification tools') {
-            steps {
+        stage('Checkout release tools') {
+            steps { script {
                 deleteDir()
-                dir('platform') { checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-platform.git',credentialsId:'github-read']]]) }
-                dir('gitops') {
-                    checkout([$class:'GitSCM',branches:[[name:params.GITOPS_COMMIT]],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-gitops.git',credentialsId:'github-read']]])
-                    sh 'if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; else git fetch origin main; fi; git merge-base --is-ancestor "$GITOPS_COMMIT" origin/main'
+                if (params.ACTION == 'promote') {
+                    checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-gitops.git',credentialsId:'github-read']]])
+                } else {
+                    dir('platform') { checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-platform.git',credentialsId:'github-read']]]) }
+                    dir('gitops') {
+                        checkout([$class:'GitSCM',branches:[[name:params.GITOPS_COMMIT]],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-gitops.git',credentialsId:'github-read']]])
+                        sh 'if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; else git fetch origin main; fi; git merge-base --is-ancestor "$GITOPS_COMMIT" origin/main'
+                    }
                 }
-            }
+            } }
+        }
+        stage('Select immutable release') {
+            when { expression { params.ACTION == 'promote' } }
+            steps { script {
+                if (params.TARGET == 'dev') { releaseArtifact() }
+                else { sh 'python3 scripts/promote.py "$SERVICE" "$TARGET" ${IMAGE:+"$IMAGE"}' }
+            } }
+        }
+        stage('Open deployment PR') {
+            when { expression { params.ACTION == 'promote' } }
+            steps { script {
+                sh 'git diff -- environments > planned-change.diff'
+                int changeStatus = sh(returnStatus: true, script: 'git diff --quiet -- environments')
+                if (changeStatus == 0) {
+                    echo 'Selected release is already deployed; no deployment PR is needed'
+                } else if (changeStatus == 1) {
+                    gitopsPullRequest(action: 'promote')
+                } else {
+                    error('Unable to determine the deployment change')
+                }
+            } }
         }
         stage('Wait for Argo CD and rollout') {
+            when { expression { params.ACTION == 'verify' } }
             steps {
                 withCredentials([file(credentialsId:"kubeconfig-${params.TARGET}",variable:'KUBECONFIG')]) {
                     sh '''set -eu
                         mkdir -p reports
                         python3 platform/scripts/wait-for-deployment.py --environment "$TARGET" --commit "$GITOPS_COMMIT" --service "$SERVICE" --image "$IMAGE" --gitops-root gitops --output reports/synchronized-commit.txt --workloads-output reports/workloads.json --timeout 900
                         for service in frontend catalogue cart orders; do
-                            if [ "$service" = frontend ] && [ "$(python3 -c 'import json; print(json.load(open("reports/workloads.json"))["frontend"])')" = Rollout ]; then
+                            if [ "$(python3 -c 'import json,sys; print(json.load(open("reports/workloads.json"))[sys.argv[1]])' "$service")" = Rollout ]; then
                                 # Protected verifier measured the active Service and stable ReplicaSet.
-                                kubectl -n "boutique-$TARGET" get rollout.argoproj.io frontend -o json > reports/frontend-rollout.json
+                                kubectl -n "boutique-$TARGET" get rollout.argoproj.io "$service" -o json > "reports/$service-rollout.json"
                             else
                                 kubectl -n "boutique-$TARGET" rollout status "deployment/$service" --timeout=180s
                             fi
@@ -61,6 +100,7 @@ pipeline {
             }
         }
         stage('Functional smoke and measured snapshots') {
+            when { expression { params.ACTION == 'verify' } }
             steps {
                 script {
                     def smoke = {
@@ -81,10 +121,11 @@ pipeline {
             }
         }
         stage('Promote verified dev release to staging') {
-            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'dev' } }
+            when { expression { params.ACTION == 'verify' && env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'dev' } }
             steps {
                 // IMAGE pins the verified dev digest; promotion fails if dev has moved on.
-                build job: 'boutique-promote', wait: false, parameters: [
+                build job: 'boutique-deploy-qa', wait: false, parameters: [
+                    string(name: 'ACTION', value: 'promote'),
                     string(name: 'TARGET', value: 'staging'),
                     string(name: 'SERVICE', value: params.SERVICE),
                     string(name: 'IMAGE', value: params.IMAGE),
@@ -93,12 +134,13 @@ pipeline {
             }
         }
         stage('Open human-reviewed production promotion') {
-            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'staging' } }
+            when { expression { params.ACTION == 'verify' && env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'staging' } }
             steps {
                 // Only a fully deployed and smoke-verified staging digest can
                 // reach this stage. The promotion job opens a production PR;
                 // production still requires a human merge.
-                build job: 'boutique-promote', wait: false, parameters: [
+                build job: 'boutique-deploy-prod', wait: false, parameters: [
+                    string(name: 'ACTION', value: 'promote'),
                     string(name: 'TARGET', value: 'production'),
                     string(name: 'SERVICE', value: params.SERVICE),
                     string(name: 'IMAGE', value: params.IMAGE),
@@ -107,5 +149,6 @@ pipeline {
             }
         }
     }
-    post { always { archiveArtifacts artifacts: 'reports/*', allowEmptyArchive: true, fingerprint: true } }
+    post { always { archiveArtifacts artifacts:'reports/*', allowEmptyArchive:true, fingerprint:true } }
+}
 }
