@@ -59,8 +59,9 @@ IMAGE
         stage('Queue production verification') {
             when { expression { env.PRODUCTION_COMMIT } }
             steps {
-                // boutique-verify checks main ancestry, Argo revision, image, rollout and smoke.
-                build job: 'boutique-verify', wait: false, parameters: [
+                // The production deployment pipeline checks main ancestry, Argo revision, image, rollout and smoke.
+                build job: 'boutique-deploy-prod', wait: false, parameters: [
+                    string(name: 'ACTION', value: 'verify'),
                     string(name: 'TARGET', value: 'production'),
                     string(name: 'SERVICE', value: env.PRODUCTION_SERVICE),
                     string(name: 'IMAGE', value: env.PRODUCTION_IMAGE),

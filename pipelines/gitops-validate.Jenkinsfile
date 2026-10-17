@@ -155,7 +155,8 @@ IMAGE
             when { expression { env.AUTO_MERGE_SHA } }
             steps {
                 // Release the executor before verification waits for Argo.
-                build job: 'boutique-verify', wait: false, parameters: [
+                build job: (env.AUTO_TARGET == 'dev' ? 'boutique-deploy-dev' : 'boutique-deploy-qa'), wait: false, parameters: [
+                    string(name: 'ACTION', value: 'verify'),
                     string(name: 'TARGET', value: env.AUTO_TARGET),
                     string(name: 'SERVICE', value: env.AUTO_SERVICE),
                     string(name: 'IMAGE', value: env.AUTO_IMAGE),
