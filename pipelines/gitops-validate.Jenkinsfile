@@ -64,7 +64,7 @@ PR
                 }
                 // Use protected scripts; candidate files are Helm/configuration inputs.
                 // No shell/Jenkinsfile from the PR is executed; no API token is bound here.
-                sh 'bash tools/scripts/validate.sh "$WORKSPACE/candidate"'
+                sh 'bash tools/scripts/validate.sh "$WORKSPACE/candidate" origin/main'
             }
         }
         stage('Report successful validation') {

@@ -164,3 +164,9 @@ Neither configuration nor identity verification enables release automation.
 Production and rollback remain human-reviewed. Never grant the App administration
 or review-bypass access. Verify protected-path review and generated-path behavior
 on an isolated branch before changing main protection.
+
+For release-only PRs, manifest validation uses the candidate checkout’s protected
+`origin/main` base to identify affected environments. The protected validator
+checks cloud, lab and laptop profiles for each affected environment, reusing each
+render for schema and image policy checks. Shared configuration changes, missing
+or divergent history, and dirty checkouts receive the full matrix.
