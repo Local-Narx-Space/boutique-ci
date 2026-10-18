@@ -482,14 +482,14 @@ Narrow Argo ignore rules, together with `RespectIgnoreDifferences`, allow that c
 
 | Job or entry point | Responsibility |
 |---|---|
-| `boutique-frontend/main` and other three service jobs | Test, scan, publish, request dev delivery |
-| `boutique-deploy-dev` | Promote to dev or verify dev |
-| `boutique-deploy-qa` | Promote to staging or verify staging |
-| `boutique-deploy-prod` | Propose production promotion or verify production |
-| `boutique-gitops-validate` | Validate exact GitOps PR head and report required status |
-| `boutique-production-verify` | Watch a production promotion PR for manual merge, then queue verification |
-| Rollback pipeline | Propose a known-good release through a GitOps PR |
-| `boutique-seed-release-pipeline` | Create/update job definitions from reviewed CI code |
+| `Services/boutique-frontend/main` and other three service jobs | Test, scan, publish, request dev delivery |
+| `Deployments/boutique-deploy-dev` | Promote to dev or verify dev |
+| `Deployments/boutique-deploy-qa` | Promote to staging or verify staging |
+| `Deployments/boutique-deploy-prod` | Propose production promotion or verify production |
+| `Release Operations/boutique-gitops-validate` | Validate exact GitOps PR head and report required status |
+| `Release Operations/boutique-production-verify` | Watch a production promotion PR for manual merge, then queue verification |
+| `Release Operations/boutique-rollback` | Propose a known-good release through a GitOps PR |
+| `Administration/boutique-seed-release-pipeline` | Create/update job definitions from reviewed CI code |
 
 The old combined promotion/verification jobs were retired. Separate environment job names make ownership and history easier to follow; shared code prevents three copies of the implementation.
 
@@ -1388,7 +1388,7 @@ bash scripts/create-verifier-kubeconfig.sh production kind-boutique-learning
 
 Create namespaces/prerequisites first where required by the RBAC manifest. Upload the generated private files as the corresponding Jenkins Secret File credentials. Do not commit them. Check that the API endpoint is reachable from the agent's network: `127.0.0.1` inside a container normally refers to that container, not the host.
 
-Configure the untrusted global library, reviewed full SHA pin, controller role, origins and bot settings. Create `boutique-seed-release-pipeline` as Pipeline from SCM using `pipelines/seed-release.Jenkinsfile` at that same reviewed pin.
+Configure the untrusted global library, reviewed full SHA pin, controller role, origins and bot settings. Create `Administration/boutique-seed-release-pipeline` as Pipeline from SCM using `pipelines/seed-release.Jenkinsfile` at that same reviewed pin.
 
 Bootstrap with `SUPPRESS_AUTOMATIC_BUILDS=true` so discovery does not immediately start every release before credentials/origins are ready. Review generated jobs, then deliberately enable normal automatic behavior after prerequisites are complete. Source jobs discover `main`; PR validation belongs on the isolated GitHub runners.
 

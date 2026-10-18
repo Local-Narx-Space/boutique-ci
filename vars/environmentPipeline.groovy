@@ -124,7 +124,7 @@ pipeline {
             when { expression { params.ACTION == 'verify' && env.BOUTIQUE_RELEASE_AUTOMATION == 'true' && params.TARGET == 'dev' } }
             steps {
                 // IMAGE pins the verified dev digest; promotion fails if dev has moved on.
-                build job: 'boutique-deploy-qa', wait: false, parameters: [
+                build job: 'Deployments/boutique-deploy-qa', wait: false, parameters: [
                     string(name: 'ACTION', value: 'promote'),
                     string(name: 'TARGET', value: 'staging'),
                     string(name: 'SERVICE', value: params.SERVICE),
@@ -139,7 +139,7 @@ pipeline {
                 // Only a fully deployed and smoke-verified staging digest can
                 // reach this stage. The promotion job opens a production PR;
                 // production still requires a human merge.
-                build job: 'boutique-deploy-prod', wait: false, parameters: [
+                build job: 'Deployments/boutique-deploy-prod', wait: false, parameters: [
                     string(name: 'ACTION', value: 'promote'),
                     string(name: 'TARGET', value: 'production'),
                     string(name: 'SERVICE', value: params.SERVICE),

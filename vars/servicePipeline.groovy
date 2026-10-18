@@ -11,7 +11,7 @@ def call(Map config) {
             disableConcurrentBuilds()
             skipStagesAfterUnstable()
             skipDefaultCheckout(true)
-            copyArtifactPermission('boutique-deploy-dev')
+            copyArtifactPermission('Deployments/boutique-deploy-dev')
         }
         parameters { booleanParam(name: 'DELIVER_TO_DEV', defaultValue: true, description: 'Open a reviewed dev GitOps PR after publication') }
         environment {
@@ -185,7 +185,7 @@ def call(Map config) {
                 steps {
                     // Queue delivery and finish the source build. Promotion and
                     // deployment status are tracked by their own downstream jobs.
-                    build job: 'boutique-deploy-dev', wait: false, parameters: [
+                    build job: 'Deployments/boutique-deploy-dev', wait: false, parameters: [
                         string(name: 'ACTION', value: 'promote'),
                         string(name: 'TARGET', value: 'dev'),
                         string(name: 'SERVICE', value: config.service),

@@ -3,13 +3,22 @@
 This repository defines Jenkins pipelines for frontend, catalogue, cart and orders.
 The existing Jenkins controller runs reviewed builds on the private build agent.
 
+## Jenkins layout
+
+Jenkins groups related entry points into four folders: **Services** contains
+the four service build pipelines, **Deployments** contains the separate dev,
+QA and production promotion pipelines, **Release Operations** contains
+GitOps validation, production verification and rollback, and
+**Administration** contains the seed and access-check jobs. Pipeline names
+and responsibilities stay distinct; foldering makes them easier to find.
+
 ## Environment pipelines
 
 | Job | Target |
 | --- | --- |
-| `boutique-deploy-dev` | Dev |
-| `boutique-deploy-qa` | QA (`staging` namespace and GitOps directory) |
-| `boutique-deploy-prod` | Production |
+| `Deployments/boutique-deploy-dev` | Dev |
+| `Deployments/boutique-deploy-qa` | QA (`staging` namespace and GitOps directory) |
+| `Deployments/boutique-deploy-prod` | Production |
 
 Each entry point calls the same shared delivery logic. `ACTION=promote` opens
 an immutable release PR; `ACTION=verify` checks its merged deployment. Targets
