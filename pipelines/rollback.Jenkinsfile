@@ -23,7 +23,7 @@ pipeline {
         stage('Checkout GitOps history') {
             steps {
                 deleteDir()
-                checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]])
+                checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]])
                 sh 'if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; else git fetch origin main; fi'
             }
         }

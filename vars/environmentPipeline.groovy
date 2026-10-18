@@ -49,11 +49,11 @@ pipeline {
             steps { script {
                 deleteDir()
                 if (params.ACTION == 'promote') {
-                    checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-gitops.git',credentialsId:'github-read']]])
+                    checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/Local-Narx-Space/boutique-gitops.git',credentialsId:'github-read']]])
                 } else {
-                    dir('platform') { checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-platform.git',credentialsId:'github-read']]]) }
+                    dir('platform') { checkout([$class:'GitSCM',branches:[[name:'main']],userRemoteConfigs:[[url:'https://github.com/Local-Narx-Space/boutique-platform.git',credentialsId:'github-read']]]) }
                     dir('gitops') {
-                        checkout([$class:'GitSCM',branches:[[name:params.GITOPS_COMMIT]],userRemoteConfigs:[[url:'https://github.com/subhankar12-spec/boutique-gitops.git',credentialsId:'github-read']]])
+                        checkout([$class:'GitSCM',branches:[[name:params.GITOPS_COMMIT]],userRemoteConfigs:[[url:'https://github.com/Local-Narx-Space/boutique-gitops.git',credentialsId:'github-read']]])
                         sh 'if [ "$(git rev-parse --is-shallow-repository)" = true ]; then git fetch --unshallow origin; else git fetch origin main; fi; git merge-base --is-ancestor "$GITOPS_COMMIT" origin/main'
                     }
                 }

@@ -20,11 +20,11 @@ pipeline {
                     def finished = false
                     node('trusted-release') {
                         deleteDir()
-                        checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-ci.git', credentialsId: 'github-read']]])
+                        checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-ci.git', credentialsId: 'github-read']]])
                         withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                             sh '''set +x
                                 set -eu
-                                gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" > pr.json
+                                gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" > pr.json
                             '''
                         }
                         sh 'python3 scripts/production-merge.py --pr pr.json --head "$PR_HEAD_SHA" > merge-state.json'
@@ -36,7 +36,7 @@ pipeline {
                             env.PRODUCTION_COMMIT = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('merge-state.json'))['commit'])"''').trim()
                             env.PRODUCTION_SERVICE = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('merge-state.json'))['service'])"''').trim()
                             dir('gitops') {
-                                checkout([$class: 'GitSCM', branches: [[name: env.PRODUCTION_COMMIT]], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]])
+                                checkout([$class: 'GitSCM', branches: [[name: env.PRODUCTION_COMMIT]], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]])
                                 // Use the exact merged selection, never a later main image.
                                 env.PRODUCTION_IMAGE = sh(returnStdout: true, script: '''python3 - "$PRODUCTION_SERVICE" <<'IMAGE'
 import sys
