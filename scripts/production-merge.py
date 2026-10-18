@@ -5,7 +5,7 @@ import json
 import re
 from pathlib import Path
 
-REPO = 'subhankar12-spec/boutique-gitops'
+REPO = 'Local-Narx-Space/boutique-gitops'
 SHA = re.compile(r'[a-f0-9]{40}')
 BRANCH = re.compile(r'jenkins/promote/production/(frontend|catalogue|cart|orders)/[1-9][0-9]*')
 

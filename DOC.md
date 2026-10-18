@@ -1122,7 +1122,7 @@ export LABROOT="$HOME/boutique-learning"
 mkdir -p "$LABROOT"
 cd "$LABROOT"
 for repository in frontend catalogue cart orders ci gitops platform infrastructure; do
-  git clone "https://github.com/subhankar12-spec/boutique-${repository}.git"
+  git clone "https://github.com/Local-Narx-Space/boutique-${repository}.git"
 done
 ```
 
@@ -1581,15 +1581,15 @@ kubectl -n argocd get application boutique-production \
 Requires GitHub CLI authentication with the intended user. These are read-only:
 
 ```bash
-gh pr list --repo subhankar12-spec/boutique-gitops --state open
-gh pr view REPLACE_PR_NUMBER --repo subhankar12-spec/boutique-gitops
-gh pr checks REPLACE_PR_NUMBER --repo subhankar12-spec/boutique-gitops
+gh pr list --repo Local-Narx-Space/boutique-gitops --state open
+gh pr view REPLACE_PR_NUMBER --repo Local-Narx-Space/boutique-gitops
+gh pr checks REPLACE_PR_NUMBER --repo Local-Narx-Space/boutique-gitops
 ```
 
 After reviewing a **production promotion PR** and confirming its checks, merging is a deliberate state-changing action:
 
 ```bash
-gh pr merge REPLACE_PR_NUMBER --repo subhankar12-spec/boutique-gitops --squash
+gh pr merge REPLACE_PR_NUMBER --repo Local-Narx-Space/boutique-gitops --squash
 ```
 
 Use the repository's allowed merge method. Do not use `--admin` to bypass checks. The owner does not need to approve their own PR as an independent reviewer in this single-owner setup.
@@ -1738,12 +1738,12 @@ Running configuration was inspected separately. Code at a revision and live inst
 
 Open these source files on GitHub:
 
-- [Service Dockerfile](https://github.com/subhankar12-spec/boutique-frontend/blob/main/Dockerfile), [service chart](https://github.com/subhankar12-spec/boutique-frontend/blob/main/helm/Chart.yaml), [service Jenkinsfile](https://github.com/subhankar12-spec/boutique-frontend/blob/main/Jenkinsfile).
-- [Shared service pipeline](https://github.com/subhankar12-spec/boutique-ci/blob/main/vars/servicePipeline.groovy), [release-change filter](https://github.com/subhankar12-spec/boutique-ci/blob/main/vars/releaseChanges.groovy), [environment pipeline](https://github.com/subhankar12-spec/boutique-ci/blob/main/vars/environmentPipeline.groovy).
-- [Job definitions](https://github.com/subhankar12-spec/boutique-ci/blob/main/jenkins/jobs/release.groovy), [agent image](https://github.com/subhankar12-spec/boutique-ci/blob/main/jenkins/agents/Dockerfile), [agent setup contract](https://github.com/subhankar12-spec/boutique-ci/blob/main/jenkins/agents/README.md).
-- [GitOps ApplicationSet](https://github.com/subhankar12-spec/boutique-gitops/blob/main/applications/laptop-appset.yaml), [production chart](https://github.com/subhankar12-spec/boutique-gitops/blob/main/environments/production/Chart.yaml), [production releases](https://github.com/subhankar12-spec/boutique-gitops/blob/main/environments/production/releases.yaml).
-- [Promotion](https://github.com/subhankar12-spec/boutique-gitops/blob/main/scripts/promote.py), [chart safety/selection](https://github.com/subhankar12-spec/boutique-gitops/blob/main/scripts/helm_release.py), [rendered policy](https://github.com/subhankar12-spec/boutique-gitops/blob/main/scripts/check_rendered_images.py).
-- [Deployment verification](https://github.com/subhankar12-spec/boutique-platform/blob/main/scripts/wait-for-deployment.py), [progressive verification](https://github.com/subhankar12-spec/boutique-platform/blob/main/scripts/progressive_deployment.py), [backup/restore](https://github.com/subhankar12-spec/boutique-platform/blob/main/scripts/backup-k8s.py), [functional smoke](https://github.com/subhankar12-spec/boutique-platform/blob/main/tests/smoke/smoke.py).
+- [Service Dockerfile](https://github.com/Local-Narx-Space/boutique-frontend/blob/main/Dockerfile), [service chart](https://github.com/Local-Narx-Space/boutique-frontend/blob/main/helm/Chart.yaml), [service Jenkinsfile](https://github.com/Local-Narx-Space/boutique-frontend/blob/main/Jenkinsfile).
+- [Shared service pipeline](https://github.com/Local-Narx-Space/boutique-ci/blob/main/vars/servicePipeline.groovy), [release-change filter](https://github.com/Local-Narx-Space/boutique-ci/blob/main/vars/releaseChanges.groovy), [environment pipeline](https://github.com/Local-Narx-Space/boutique-ci/blob/main/vars/environmentPipeline.groovy).
+- [Job definitions](https://github.com/Local-Narx-Space/boutique-ci/blob/main/jenkins/jobs/release.groovy), [agent image](https://github.com/Local-Narx-Space/boutique-ci/blob/main/jenkins/agents/Dockerfile), [agent setup contract](https://github.com/Local-Narx-Space/boutique-ci/blob/main/jenkins/agents/README.md).
+- [GitOps ApplicationSet](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/applications/laptop-appset.yaml), [production chart](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/environments/production/Chart.yaml), [production releases](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/environments/production/releases.yaml).
+- [Promotion](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/scripts/promote.py), [chart safety/selection](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/scripts/helm_release.py), [rendered policy](https://github.com/Local-Narx-Space/boutique-gitops/blob/main/scripts/check_rendered_images.py).
+- [Deployment verification](https://github.com/Local-Narx-Space/boutique-platform/blob/main/scripts/wait-for-deployment.py), [progressive verification](https://github.com/Local-Narx-Space/boutique-platform/blob/main/scripts/progressive_deployment.py), [backup/restore](https://github.com/Local-Narx-Space/boutique-platform/blob/main/scripts/backup-k8s.py), [functional smoke](https://github.com/Local-Narx-Space/boutique-platform/blob/main/tests/smoke/smoke.py).
 
 Some working clones may be behind the revision table. Fetch and inspect the listed revision, or use an isolated worktree; do not discard local work just to make a link show newer code.
 

@@ -23,12 +23,12 @@ pipeline {
         stage('Fetch protected tools and PR revision') {
             steps {
                 deleteDir()
-                dir('automation') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-ci.git', credentialsId: 'github-read']]]) }
-                dir('tools') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]]) }
+                dir('automation') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-ci.git', credentialsId: 'github-read']]]) }
+                dir('tools') { checkout([$class: 'GitSCM', branches: [[name: 'main']], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]]) }
                 withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
-                        gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" > pr.json
+                        gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" > pr.json
                     '''
                 }
                 script {
@@ -42,7 +42,7 @@ try:
     pr = json.loads(Path('pr.json').read_text())
     sha = pr['head']['sha']
     valid = (pr['state'] == 'open' and pr['base']['ref'] == 'main'
-             and pr['head']['repo']['full_name'] == 'subhankar12-spec/boutique-gitops'
+             and pr['head']['repo']['full_name'] == 'Local-Narx-Space/boutique-gitops'
              and isinstance(sha, str) and re.fullmatch(r'[a-f0-9]{40}', sha))
 except (ValueError, KeyError, TypeError):
     valid = False
@@ -52,14 +52,14 @@ print(sha)
 PR
 ''').trim()
                 }
-                dir('candidate') { checkout([$class: 'GitSCM', branches: [[name: env.PR_HEAD_SHA]], userRemoteConfigs: [[url: 'https://github.com/subhankar12-spec/boutique-gitops.git', credentialsId: 'github-read']]]) }
+                dir('candidate') { checkout([$class: 'GitSCM', branches: [[name: env.PR_HEAD_SHA]], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]]) }
             }
         }
         stage('Validate Helm and manifests') {
             steps {
                 withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                     sh '''set +x
-                        gh api --method POST "repos/subhankar12-spec/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=pending -f context='boutique/gitops-validation' -f description='Validating Helm and Kubernetes manifests' -f target_url="$BUILD_URL" >/dev/null
+                        gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=pending -f context='boutique/gitops-validation' -f description='Validating Helm and Kubernetes manifests' -f target_url="$BUILD_URL" >/dev/null
                     '''
                 }
                 // Use protected scripts; candidate files are Helm/configuration inputs.
@@ -72,9 +72,9 @@ PR
                 withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
-                        CURRENT_HEAD=$(gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" --jq .head.sha)
+                        CURRENT_HEAD=$(gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" --jq .head.sha)
                         test "$CURRENT_HEAD" = "$PR_HEAD_SHA"
-                        gh api --method POST "repos/subhankar12-spec/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=success -f context='boutique/gitops-validation' -f description='Helm and Kubernetes manifests passed' -f target_url="$BUILD_URL" >/dev/null
+                        gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=success -f context='boutique/gitops-validation' -f description='Helm and Kubernetes manifests passed' -f target_url="$BUILD_URL" >/dev/null
                     '''
                 }
             }
@@ -104,7 +104,7 @@ PRODUCTION
                 withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
-                        gh api "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
+                        gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
                         if [ -n "$GITOPS_APP_ID" ]; then
                             test "$GIT_USER" = "$GITOPS_APP_ID"
                             BOT="$GITOPS_BOT_LOGIN"
@@ -119,9 +119,9 @@ PRODUCTION
                             exit 0
                         fi
                         # Required isolated PR checks may still be running after manifest validation.
-                        gh pr checks "$PR_NUMBER" --repo subhankar12-spec/boutique-gitops --required --watch --fail-fast --interval 10
+                        gh pr checks "$PR_NUMBER" --repo Local-Narx-Space/boutique-gitops --required --watch --fail-fast --interval 10
                         # GitHub enforces branch protections; never use admin bypass.
-                        gh api --method PUT "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
+                        gh api --method PUT "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
                         python3 - <<'MERGE'
 import json
 from pathlib import Path
@@ -173,7 +173,7 @@ IMAGE
                 if (env.PR_HEAD_SHA ==~ /[a-f0-9]{40}/) {
                     withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
                         sh returnStatus: true, script: '''set +x
-                            gh api --method POST "repos/subhankar12-spec/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=failure -f context='boutique/gitops-validation' -f description='Manifest validation failed; inspect Jenkins' -f target_url="$BUILD_URL" >/dev/null
+                            gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=failure -f context='boutique/gitops-validation' -f description='Manifest validation failed; inspect Jenkins' -f target_url="$BUILD_URL" >/dev/null
                         '''
                     }
                 }

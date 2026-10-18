@@ -32,12 +32,12 @@ Dev/staging bot promotion PRs may merge automatically after successful validatio
                 printf '#!/bin/sh\ncase "$1" in *Username*) printf "%%s" "$GIT_USER";; *) printf "%%s" "$GH_TOKEN";; esac\n' > "$ASKPASS"
                 chmod 700 "$ASKPASS"
                 GIT_ASKPASS="$ASKPASS" GIT_TERMINAL_PROMPT=0 git push origin "$BRANCH"
-                gh pr create --repo subhankar12-spec/boutique-gitops --base main --head "$BRANCH" --title "$GITOPS_ACTION $SERVICE in $TARGET" --body-file gitops-pr-body.md > gitops-pr-url.txt
+                gh pr create --repo Local-Narx-Space/boutique-gitops --base main --head "$BRANCH" --title "$GITOPS_ACTION $SERVICE in $TARGET" --body-file gitops-pr-body.md > gitops-pr-url.txt
             '''
         }
     }
     withCredentials([usernamePassword(credentialsId: credentialId, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
-        sh 'set +x; gh pr view --repo subhankar12-spec/boutique-gitops "$(cat gitops-pr-url.txt)" --json number --jq .number > gitops-pr-number.txt'
+        sh 'set +x; gh pr view --repo Local-Narx-Space/boutique-gitops "$(cat gitops-pr-url.txt)" --json number --jq .number > gitops-pr-number.txt'
     }
     def number = readFile('gitops-pr-number.txt').trim()
     if (!(number ==~ /[1-9][0-9]*/)) { error('Missing GitOps PR number') }

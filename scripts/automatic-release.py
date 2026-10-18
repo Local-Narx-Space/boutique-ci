@@ -6,7 +6,7 @@ from pathlib import Path
 import re
 import subprocess
 
-REPO = 'subhankar12-spec/boutique-gitops'
+REPO = 'Local-Narx-Space/boutique-gitops'
 BRANCH = re.compile(r'jenkins/promote/(dev|staging)/(frontend|catalogue|cart|orders)/[1-9][0-9]*')
 
 

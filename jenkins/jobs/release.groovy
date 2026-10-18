@@ -9,9 +9,9 @@ services.each { service ->
      github {
       id("boutique-${service}-trusted-main")
       credentialsId('github-read')
-      repoOwner('subhankar12-spec')
+      repoOwner('Local-Narx-Space')
       repository("boutique-${service}")
-      repositoryUrl("https://github.com/subhankar12-spec/boutique-${service}")
+      repositoryUrl("https://github.com/Local-Narx-Space/boutique-${service}")
       configuredByUrl(false)
       traits {
        gitHubBranchDiscovery { strategyId(3) }
@@ -61,7 +61,7 @@ services.each { service ->
   }
   definition {
    cpsScm {
-    scm { git { remote { url('https://github.com/subhankar12-spec/boutique-ci.git'); credentials('github-read') }; branch('*/main') } }
+    scm { git { remote { url('https://github.com/Local-Narx-Space/boutique-ci.git'); credentials('github-read') }; branch('*/main') } }
     scriptPath("pipelines/${job}.Jenkinsfile")
     lightweight(true)
    }
