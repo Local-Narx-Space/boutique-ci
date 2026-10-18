@@ -55,38 +55,14 @@ PR
                 dir('candidate') { checkout([$class: 'GitSCM', branches: [[name: env.PR_HEAD_SHA]], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]]) }
             }
         }
-        stage('Install trusted progressive-delivery policy') {
+        stage('Wait for required GitHub PR checks') {
             steps {
-                // The policy is maintained in boutique-ci, outside the GitOps PR
-                // being judged. Keep the validator's baseline independent of PR data.
-                sh '''set -eu
-                    test -f automation/trusted-policy/argo-rollouts/checkout-check.mjs
-                    test -f automation/trusted-policy/argo-rollouts/backend-check.mjs
-                    cp automation/trusted-policy/argo-rollouts/checkout-check.mjs tools/platform/argo-rollouts/checkout-check.mjs
-                    cp automation/trusted-policy/argo-rollouts/backend-check.mjs tools/platform/argo-rollouts/backend-check.mjs
-                '''
-            }
-        }
-        stage('Validate Helm and manifests') {
-            steps {
-                withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
-                    sh '''set +x
-                        gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=pending -f context='boutique/gitops-validation' -f description='Validating Helm and Kubernetes manifests' -f target_url="$BUILD_URL" >/dev/null
-                    '''
-                }
-                // Use protected scripts; candidate files are Helm/configuration inputs.
-                // No shell/Jenkinsfile from the PR is executed; no API token is bound here.
-                sh 'bash tools/scripts/validate.sh "$WORKSPACE/candidate" origin/main'
-            }
-        }
-        stage('Report successful validation') {
-            steps {
-                withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
+                withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
+                        gh pr checks "$PR_NUMBER" --repo Local-Narx-Space/boutique-gitops --required --watch --fail-fast --interval 10
                         CURRENT_HEAD=$(gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" --jq .head.sha)
                         test "$CURRENT_HEAD" = "$PR_HEAD_SHA"
-                        gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=success -f context='boutique/gitops-validation' -f description='Helm and Kubernetes manifests passed' -f target_url="$BUILD_URL" >/dev/null
                     '''
                 }
             }
@@ -130,8 +106,6 @@ PRODUCTION
                             echo 'Human-reviewed change: automatic merge skipped.'
                             exit 0
                         fi
-                        # Required isolated PR checks may still be running after manifest validation.
-                        gh pr checks "$PR_NUMBER" --repo Local-Narx-Space/boutique-gitops --required --watch --fail-fast --interval 10
                         # GitHub enforces branch protections; never use admin bypass.
                         gh api --method PUT "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
                         python3 - <<'MERGE'
@@ -176,19 +150,6 @@ IMAGE
                     string(name: 'IMAGE', value: env.AUTO_IMAGE),
                     string(name: 'GITOPS_COMMIT', value: env.AUTO_MERGE_SHA)
                 ]
-            }
-        }
-    }
-    post {
-        unsuccessful {
-            script {
-                if (env.PR_HEAD_SHA ==~ /[a-f0-9]{40}/) {
-                    withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
-                        sh returnStatus: true, script: '''set +x
-                            gh api --method POST "repos/Local-Narx-Space/boutique-gitops/statuses/$PR_HEAD_SHA" -f state=failure -f context='boutique/gitops-validation' -f description='Manifest validation failed; inspect Jenkins' -f target_url="$BUILD_URL" >/dev/null
-                        '''
-                    }
-                }
             }
         }
     }

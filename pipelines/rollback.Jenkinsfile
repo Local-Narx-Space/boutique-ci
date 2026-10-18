@@ -30,7 +30,7 @@ pipeline {
         stage('Restore previous image and chart selection') {
             steps {
                 sh 'python3 scripts/rollback.py "$SERVICE" "$TARGET" "$GITOPS_COMMIT"'
-                // boutique-gitops-validate checks the exact rollback PR head.
+                // Required GitHub checks validate the exact rollback PR head before orchestration proceeds.
                 sh 'git diff -- environments > planned-change.diff'
             }
         }

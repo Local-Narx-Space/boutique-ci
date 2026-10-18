@@ -486,7 +486,7 @@ Narrow Argo ignore rules, together with `RespectIgnoreDifferences`, allow that c
 | `Deployments/boutique-deploy-dev` | Promote to dev or verify dev |
 | `Deployments/boutique-deploy-qa` | Promote to staging or verify staging |
 | `Deployments/boutique-deploy-prod` | Propose production promotion or verify production |
-| `Release Operations/boutique-gitops-validate` | Validate exact GitOps PR head and report required status |
+| `Release Operations/boutique-gitops-validate` | Wait for required GitHub PR checks, then handle eligible release PRs |
 | `Release Operations/boutique-production-verify` | Watch a production promotion PR for manual merge, then queue verification |
 | `Release Operations/boutique-rollback` | Propose a known-good release through a GitOps PR |
 | `Administration/boutique-seed-release-pipeline` | Create/update job definitions from reviewed CI code |
@@ -541,12 +541,12 @@ It creates a release branch, commits allowed GitOps changes, opens a PR, queues 
 | `deploy-dev.Jenkinsfile` | Small wrapper fixing target to dev |
 | `deploy-qa.Jenkinsfile` | Small wrapper fixing target to staging |
 | `deploy-prod.Jenkinsfile` | Small wrapper fixing target to production |
-| `gitops-validate.Jenkinsfile` | Validates exact candidate PR head using trusted tooling; sets `boutique/gitops-validation` |
+| `gitops-validate.Jenkinsfile` | Waits for required GitHub checks on the exact PR head, then handles eligible merge/verification actions |
 | `production-verify.Jenkinsfile` | Waits for manual production merge without holding an executor throughout polling |
 | `rollback.Jenkinsfile` | Requires a known-good full GitOps revision and creates a rollback PR |
 | `seed-release.Jenkinsfile` | Loads Job DSL definitions with controlled bootstrap behavior |
 
-Candidate GitOps content is treated as configuration data. Validation must not execute arbitrary scripts supplied by an untrusted PR with trusted credentials. The PR head is checked again so a result for commit A cannot silently authorize a later commit B.
+The GitOps pull request workflow runs fast policy tests and full Helm/schema/image validation for every PR. Its validator uses scripts from the protected base revision and treats PR content as configuration data. Jenkins waits for the required GitHub checks before any automatic dev/staging merge or production-verification handoff; it does not duplicate manifest validation. The PR head is checked again so results for commit A cannot silently authorize a later commit B.
 
 Eligible bot dev/staging promotion PRs may merge automatically after required checks. Production promotions and rollback PRs do not follow that automatic-merge path.
 
@@ -578,7 +578,7 @@ Do not fix a sandbox rejection by granting unrestricted script execution or appr
 | `github-read` | Read source | Publishing or administrator operations |
 | `ghcr-publish` | Publish approved artifacts | Untrusted PR code |
 | `gitops-release-app` | GitHub App authentication for release PRs | Broad personal-account administration |
-| `gitops-checks` | Check/status metadata operations | Runtime Kubernetes administration |
+| `gitops-checks` | Read GitOps PR/check metadata for release orchestration | Writing commit statuses or runtime Kubernetes administration |
 | `kubeconfig-dev` / `kubeconfig-staging` / `kubeconfig-production` | Read-only verification | Applying workloads or reading every Secret |
 
 A PAT fallback named `gitops-pr` exists, but the active setup uses the release App. Private CA credentials are only used when private-CA mode is enabled; public Cloudflare origins use normal public trust.
