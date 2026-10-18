@@ -37,8 +37,8 @@ def call(Map config) {
               path == 'CODE_OF_CONDUCT.md' || path == 'CHANGELOG.md' ||
               path == '.gitignore' || path == '.editorconfig')
         }
-        echo required ? 'Release inputs changed since the last published release.' :
-                        'Only documentation/CI metadata changed; skipping image build, publication and promotion.'
+        echo(required ? 'Release inputs changed since the last published release.' :
+                        'Only documentation/CI metadata changed; skipping image build, publication and promotion.')
         return required
     }
 }

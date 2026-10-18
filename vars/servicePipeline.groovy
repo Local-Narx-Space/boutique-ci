@@ -167,8 +167,8 @@ def call(Map config) {
                                         if (!(env.RELEASE_IMAGE ==~ /ghcr\.io\/subhankar12-spec\/boutique-[a-z-]+@sha256:[a-f0-9]{64}/)) { error('Missing immutable registry digest') }
                                     }
                                     sh 'printf "%s\\n" "$SOURCE_COMMIT" > source-commit.txt'
-                        }
-                    }
+                                }
+                            }
                         }
                     }
 
