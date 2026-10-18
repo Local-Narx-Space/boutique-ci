@@ -55,6 +55,18 @@ PR
                 dir('candidate') { checkout([$class: 'GitSCM', branches: [[name: env.PR_HEAD_SHA]], userRemoteConfigs: [[url: 'https://github.com/Local-Narx-Space/boutique-gitops.git', credentialsId: 'github-read']]]) }
             }
         }
+        stage('Install trusted progressive-delivery policy') {
+            steps {
+                // The policy is maintained in boutique-ci, outside the GitOps PR
+                // being judged. Keep the validator's baseline independent of PR data.
+                sh '''set -eu
+                    test -f automation/trusted-policy/argo-rollouts/checkout-check.mjs
+                    test -f automation/trusted-policy/argo-rollouts/backend-check.mjs
+                    cp automation/trusted-policy/argo-rollouts/checkout-check.mjs tools/platform/argo-rollouts/checkout-check.mjs
+                    cp automation/trusted-policy/argo-rollouts/backend-check.mjs tools/platform/argo-rollouts/backend-check.mjs
+                '''
+            }
+        }
         stage('Validate Helm and manifests') {
             steps {
                 withCredentials([string(credentialsId: 'gitops-checks', variable: 'GH_TOKEN')]) {
