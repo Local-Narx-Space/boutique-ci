@@ -60,10 +60,10 @@ PR
                 // The policy is maintained in boutique-ci, outside the GitOps PR
                 // being judged. Keep the validator's baseline independent of PR data.
                 sh '''set -eu
-                    test -f automation/trusted-policy/argo-rollouts/frontend.yaml.tpl
                     test -f automation/trusted-policy/argo-rollouts/checkout-check.mjs
                     test -f automation/trusted-policy/argo-rollouts/backend-check.mjs
-                    cp -a automation/trusted-policy/argo-rollouts/. tools/platform/argo-rollouts/
+                    cp automation/trusted-policy/argo-rollouts/checkout-check.mjs tools/platform/argo-rollouts/checkout-check.mjs
+                    cp automation/trusted-policy/argo-rollouts/backend-check.mjs tools/platform/argo-rollouts/backend-check.mjs
                 '''
             }
         }

@@ -45,7 +45,7 @@ merge, followed by deployment verification. Promotion never rebuilds an image.
 | `jenkins/jobs/` | Job DSL for the four services and release jobs |
 | `jenkins/agents/` | Build-agent image and its restricted build context |
 | `jenkins/scripts/` | Pinned agent-tool installer and live Jenkins pipeline validator |
-| `trusted-policy/argo-rollouts/` | Reviewed progressive-delivery templates and analysis probes copied into the manifest validator workspace |
+| `trusted-policy/argo-rollouts/` | Reviewed analysis probes copied into the manifest validator workspace |
 | `tests/` | Release authorization, production merge, agent-tool and validator tests |
 
 The shared library and seed use separately reviewed commit pins. Operational

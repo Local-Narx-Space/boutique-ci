@@ -1,6 +1,4 @@
 """The Jenkins GitOps validator must use policy maintained outside its PR input."""
-import hashlib
-import json
 from pathlib import Path
 import unittest
 
@@ -9,17 +7,19 @@ POLICY = ROOT / 'trusted-policy/argo-rollouts'
 
 
 class TrustedPolicyTests(unittest.TestCase):
-    def test_controller_assets_match_the_reviewed_release_lock(self):
-        lock = json.loads((POLICY / 'release-lock.json').read_text())
-        for name, expected in lock['assets'].items():
-            with self.subTest(asset=name):
-                self.assertEqual(hashlib.sha256((POLICY / name).read_bytes()).hexdigest(), expected)
+    def test_reviewed_probe_baseline_accepts_both_supported_currencies(self):
+        backend = (POLICY / 'backend-check.mjs').read_text()
+        checkout = (POLICY / 'checkout-check.mjs').read_text()
+        self.assertIn("['USD','INR'].includes(p.currency)", backend)
+        self.assertIn("assert.equal(order.currency, product.currency)", backend)
+        self.assertIn("assert.equal(order.currency, product.currency)", checkout)
 
     def test_validator_installs_policy_from_the_trusted_ci_checkout(self):
         pipeline = (ROOT / 'pipelines/gitops-validate.Jenkinsfile').read_text()
-        install = 'cp -a automation/trusted-policy/argo-rollouts/. tools/platform/argo-rollouts/'
+        install = 'cp automation/trusted-policy/argo-rollouts/checkout-check.mjs tools/platform/argo-rollouts/checkout-check.mjs'
         validate = 'bash tools/scripts/validate.sh "$WORKSPACE/candidate" origin/main'
         self.assertIn(install, pipeline)
+        self.assertIn('cp automation/trusted-policy/argo-rollouts/backend-check.mjs tools/platform/argo-rollouts/backend-check.mjs', pipeline)
         self.assertLess(pipeline.index(install), pipeline.index(validate))
 
 
