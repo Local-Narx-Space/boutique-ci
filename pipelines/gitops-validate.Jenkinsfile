@@ -91,7 +91,7 @@ print('yes' if re.fullmatch(r'jenkins/promote/production/(frontend|catalogue|car
 PRODUCTION
 ''').trim()
                 if (production == 'yes') {
-                    build job: 'boutique-production-verify', wait: false, parameters: [
+                    build job: 'Release Operations/boutique-production-verify', wait: false, parameters: [
                         string(name: 'PR_NUMBER', value: params.PR_NUMBER),
                         string(name: 'PR_HEAD_SHA', value: env.PR_HEAD_SHA)
                     ]
@@ -157,7 +157,7 @@ IMAGE
             when { expression { env.AUTO_MERGE_SHA } }
             steps {
                 // Release the executor before verification waits for Argo.
-                build job: (env.AUTO_TARGET == 'dev' ? 'boutique-deploy-dev' : 'boutique-deploy-qa'), wait: false, parameters: [
+                build job: (env.AUTO_TARGET == 'dev' ? 'Deployments/boutique-deploy-dev' : 'Deployments/boutique-deploy-qa'), wait: false, parameters: [
                     string(name: 'ACTION', value: 'verify'),
                     string(name: 'TARGET', value: env.AUTO_TARGET),
                     string(name: 'SERVICE', value: env.AUTO_SERVICE),

@@ -42,7 +42,7 @@ Dev/staging bot promotion PRs may merge automatically after successful validatio
     def number = readFile('gitops-pr-number.txt').trim()
     if (!(number ==~ /[1-9][0-9]*/)) { error('Missing GitOps PR number') }
     // Queue without waiting: one shared executor runs validation after this job ends.
-    build job: 'boutique-gitops-validate', wait: false, parameters: [string(name: 'PR_NUMBER', value: number)]
+    build job: 'Release Operations/boutique-gitops-validate', wait: false, parameters: [string(name: 'PR_NUMBER', value: number)]
     archiveArtifacts artifacts: 'gitops-pr-url.txt,planned-change.diff', fingerprint: true
     echo "Deployment PR (validation follows): ${readFile('gitops-pr-url.txt').trim()}"
 }

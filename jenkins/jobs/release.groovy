@@ -1,8 +1,19 @@
 // The Pipeline seed defaults to manual builds while initial delivery is configured.
 def suppressBuilds = suppressAutomaticBuilds
+[
+ 'Services': 'Application service build and release pipelines',
+ 'Deployments': 'Environment-specific promotion and deployment verification entry points',
+ 'Release Operations': 'Protected validation, production verification, and recovery operations',
+ 'Administration': 'Controller setup and access administration jobs'
+].each { name, purpose ->
+ folder(name) {
+  description(purpose)
+ }
+}
+
 def services = ['frontend','catalogue','cart','orders']
 services.each { service ->
- multibranchPipelineJob("boutique-${service}") {
+ multibranchPipelineJob("Services/boutique-${service}") {
   branchSources {
    branchSource {
     source {
@@ -36,7 +47,8 @@ services.each { service ->
 }
 ['deploy-dev','deploy-qa','deploy-prod','rollback','gitops-validate','production-verify'].each { job ->
  def target = ['deploy-dev':'dev','deploy-qa':'staging','deploy-prod':'production'][job]
- pipelineJob("boutique-${job}") {
+ def folder = target ? 'Deployments' : 'Release Operations'
+ pipelineJob("${folder}/boutique-${job}") {
   description(target ? "${job}: immutable release PR and deployment verification; QA uses staging. Production requires PR review and merge." : "Protected release support: ${job}")
   // Job DSL replaces job properties on every seed run. Declare the Pipeline
   // inputs here too so API/downstream builds work before its next execution.
