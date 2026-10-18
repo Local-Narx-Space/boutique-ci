@@ -118,6 +118,8 @@ PRODUCTION
                             echo 'Human-reviewed change: automatic merge skipped.'
                             exit 0
                         fi
+                        # Required isolated PR checks may still be running after manifest validation.
+                        gh pr checks "$PR_NUMBER" --repo subhankar12-spec/boutique-gitops --required --watch --fail-fast --interval 10
                         # GitHub enforces branch protections; never use admin bypass.
                         gh api --method PUT "repos/subhankar12-spec/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
                         python3 - <<'MERGE'
