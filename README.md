@@ -59,3 +59,13 @@ python3 -m unittest discover -s tests -v
 existing authenticated Jenkins controller. It does not start jobs or deploy.
 Service tests, scans, publication, manifest validation and deployment verification
 remain required release gates. Protect GitOps review/validation rules separately.
+
+
+Release builds compare the checkout with the last successful build that actually
+published this service's image. Docs, GitHub configuration, Jenkinsfile and known
+repository metadata changes skip expensive release work and downstream promotion;
+checkout, main ancestry validation and the source secret scan still run. Skipped
+builds do not become the publication baseline. Unknown paths, missing history,
+first releases, runtime/dependency/Dockerfile/Helm changes take the full path.
+Rename detection is disabled so moving application inputs into docs still builds.
+Keep this conservative non-release path list aligned with Docker build inputs.
