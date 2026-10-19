@@ -1586,7 +1586,7 @@ After reviewing a **production promotion PR** and confirming its checks, merging
 gh pr merge REPLACE_PR_NUMBER --repo Local-Narx-Space/boutique-gitops --squash
 ```
 
-Use the repository's allowed merge method. Do not use `--admin` to bypass checks. The owner does not need to approve their own PR as an independent reviewer in this single-owner setup.
+Use the repository's allowed merge method. Do not use `--admin` to bypass checks. Code-S-12 must provide the independent code-owner approval; authors cannot approve their own PRs.
 
 ### 16.5 Laptop restart and changing IP
 
@@ -1669,7 +1669,7 @@ Then state the boundary honestly: this runs on one laptop, so it demonstrates pr
 22. **What is missing from a local backup?** Protection from losing the whole laptop, off-host retention and a proven disaster-recovery process.
 23. **How do you debug stale UI?** Trace release identities before investigating cache behavior.
 24. **How do you optimize CI?** Measure bottlenecks, reuse safe work, scope checks, parallelize within resource limits and avoid unnecessary releases.
-25. **Does this lab have independent reviewer enforcement?** No; it deliberately uses single-owner controls with required checks and manual production merge.
+25. **Does this lab have independent reviewer enforcement?** Yes; all seven repositories require Code-S-12 code-owner approval and successful checks.
 26. **Is a service mesh mandatory?** No. Add it only for concrete requirements that justify its operational cost.
 
 ### 17.4 How to grow the code cleanly
