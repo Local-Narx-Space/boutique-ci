@@ -60,97 +60,33 @@ PR
                 withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
                     sh '''set +x
                         set -eu
-                        gh pr checks "$PR_NUMBER" --repo Local-Narx-Space/boutique-gitops --required --watch --fail-fast --interval 10
+                        python3 automation/scripts/wait-for-pr-checks.py --pr "$PR_NUMBER" --head "$PR_HEAD_SHA"
                         CURRENT_HEAD=$(gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" --jq .head.sha)
                         test "$CURRENT_HEAD" = "$PR_HEAD_SHA"
                     '''
                 }
             }
         }
-        stage('Queue human-reviewed production merge watcher') {
+        stage('Queue reviewed release merge watcher') {
             when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
             steps { script {
-                def production = sh(returnStdout: true, script: '''python3 - <<'PRODUCTION'
+                def promotion = sh(returnStdout: true, script: '''python3 - <<'PROMOTION'
 import json
 import re
 from pathlib import Path
 pr = json.loads(Path('pr.json').read_text())
-print('yes' if re.fullmatch(r'jenkins/promote/production/(frontend|catalogue|cart|orders)/[1-9][0-9]*', pr['head']['ref']) else 'no')
-PRODUCTION
+print('yes' if re.fullmatch(r'jenkins/promote/(dev|staging|production)/(frontend|catalogue|cart|orders)/[1-9][0-9]*', pr['head']['ref']) else 'no')
+PROMOTION
 ''').trim()
-                if (production == 'yes') {
-                    build job: 'Release Operations/boutique-production-verify', wait: false, parameters: [
+                if (promotion == 'yes') {
+                    build job: 'Release Operations/boutique-release-verify', wait: false, parameters: [
                         string(name: 'PR_NUMBER', value: params.PR_NUMBER),
                         string(name: 'PR_HEAD_SHA', value: env.PR_HEAD_SHA)
                     ]
+                } else {
+                    echo 'Configuration or rollback PR: no promotion continuation queued.'
                 }
             } }
-        }
-        stage('Merge validated dev or staging promotion') {
-            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
-            steps {
-                withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
-                    sh '''set +x
-                        set -eu
-                        gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
-                        if [ -n "$GITOPS_APP_ID" ]; then
-                            test "$GIT_USER" = "$GITOPS_APP_ID"
-                            BOT="$GITOPS_BOT_LOGIN"
-                        else
-                            BOT=$(gh api user --jq .login)
-                        fi
-                        set -- --pr current-pr.json --bot "$BOT" --head "$PR_HEAD_SHA" --candidate candidate
-                        if [ -n "$GITOPS_APP_ID" ]; then set -- "$@" --bot-id "$GITOPS_BOT_ID"; fi
-                        python3 automation/scripts/automatic-release.py "$@" > automatic-release.json
-                        if [ "$(cat automatic-release.json)" = null ]; then
-                            echo 'Human-reviewed change: automatic merge skipped.'
-                            exit 0
-                        fi
-                        # GitHub enforces branch protections; never use admin bypass.
-                        gh api --method PUT "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER/merge" -f sha="$PR_HEAD_SHA" -f merge_method=squash > merge.json
-                        python3 - <<'MERGE'
-import json
-from pathlib import Path
-result = json.loads(Path('merge.json').read_text())
-if result.get('merged') is not True:
-    raise SystemExit('GitHub did not merge the validated promotion')
-import re
-sha = result.get('sha', '')
-if not re.fullmatch(r'[a-f0-9]{40}', sha):
-    raise SystemExit('Missing merge commit SHA')
-Path('merge-sha.txt').write_text(sha)
-MERGE
-                    '''
-                }
-                script {
-                    if (fileExists('merge-sha.txt')) {
-                        env.AUTO_MERGE_SHA = readFile('merge-sha.txt').trim()
-                        env.AUTO_TARGET = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('automatic-release.json'))['target'])"''').trim()
-                        env.AUTO_SERVICE = sh(returnStdout: true, script: '''python3 -c "import json; print(json.load(open('automatic-release.json'))['service'])"''').trim()
-                        env.AUTO_IMAGE = sh(returnStdout: true, script: '''python3 - "$AUTO_SERVICE" "$AUTO_TARGET" <<'IMAGE'
-import sys
-sys.path.insert(0, 'tools/scripts')
-from release_config import selected_image
-from pathlib import Path
-print(selected_image(Path.cwd() / 'candidate', sys.argv[1], sys.argv[2]))
-IMAGE
-''').trim()
-                    }
-                }
-            }
-        }
-        stage('Queue deployed release verification') {
-            when { expression { env.AUTO_MERGE_SHA } }
-            steps {
-                // Release the executor before verification waits for Argo.
-                build job: (env.AUTO_TARGET == 'dev' ? 'Deployments/boutique-deploy-dev' : 'Deployments/boutique-deploy-qa'), wait: false, parameters: [
-                    string(name: 'ACTION', value: 'verify'),
-                    string(name: 'TARGET', value: env.AUTO_TARGET),
-                    string(name: 'SERVICE', value: env.AUTO_SERVICE),
-                    string(name: 'IMAGE', value: env.AUTO_IMAGE),
-                    string(name: 'GITOPS_COMMIT', value: env.AUTO_MERGE_SHA)
-                ]
-            }
         }
     }
 }

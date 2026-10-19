@@ -11,7 +11,7 @@ def call(Map config) {
             disableConcurrentBuilds()
             skipStagesAfterUnstable()
             skipDefaultCheckout(true)
-            copyArtifactPermission('Deployments/boutique-deploy-dev')
+            copyArtifactPermission('/Deployments/boutique-deploy-dev')
         }
         parameters { booleanParam(name: 'DELIVER_TO_DEV', defaultValue: true, description: 'Open a reviewed dev GitOps PR after publication') }
         environment {

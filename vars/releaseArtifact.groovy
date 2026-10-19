@@ -3,7 +3,7 @@ def call() {
         error('Select a service and its protected-main publishing build number')
     }
     dir('release-artifacts') { deleteDir() }
-    copyArtifacts projectName: "boutique-${params.SERVICE}/main", selector: specific(params.RELEASE_BUILD),
+    copyArtifacts projectName: "/Services/boutique-${params.SERVICE}/main", selector: specific(params.RELEASE_BUILD),
         filter: 'image-digest.txt,source-commit.txt,chart.tgz', target: 'release-artifacts', flatten: true
     def image = readFile('release-artifacts/image-digest.txt').trim()
     def source = readFile('release-artifacts/source-commit.txt').trim()

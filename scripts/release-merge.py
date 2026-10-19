@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Inspect a production PR without approving or merging it."""
+"""Inspect a release PR without approving or merging it."""
 import argparse
 import json
 import re
@@ -7,7 +7,7 @@ from pathlib import Path
 
 REPO = 'Local-Narx-Space/boutique-gitops'
 SHA = re.compile(r'[a-f0-9]{40}')
-BRANCH = re.compile(r'jenkins/promote/production/(frontend|catalogue|cart|orders)/[1-9][0-9]*')
+BRANCH = re.compile(r'jenkins/promote/(dev|staging|production)/(frontend|catalogue|cart|orders)/[1-9][0-9]*')
 
 
 def inspect(pr, head):
@@ -17,12 +17,12 @@ def inspect(pr, head):
             or pr.get('head', {}).get('repo', {}).get('full_name') != REPO
             or pr.get('base', {}).get('repo', {}).get('full_name') != REPO
             or pr.get('base', {}).get('ref') != 'main'):
-        raise ValueError('Expected the unchanged validated production PR against GitOps main')
+        raise ValueError('Expected the unchanged validated release PR against GitOps main')
     if pr.get('merged') is True:
         commit = pr.get('merge_commit_sha', '')
         if pr.get('state') != 'closed' or not SHA.fullmatch(commit):
             raise ValueError('Merged PR requires a full merge commit')
-        return {'state': 'merged', 'commit': commit, 'service': match[1]}
+        return {'state': 'merged', 'commit': commit, 'service': match[2], 'target': match[1]}
     if pr.get('state') == 'closed':
         return {'state': 'closed'}
     if pr.get('state') != 'open':

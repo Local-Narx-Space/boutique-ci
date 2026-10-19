@@ -3,14 +3,14 @@ import importlib.util
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location('production_merge', Path(__file__).parents[1] / 'scripts/production-merge.py')
+spec = importlib.util.spec_from_file_location('release_merge', Path(__file__).parents[1] / 'scripts/release-merge.py')
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
 HEAD = 'a' * 40
 MERGE = 'b' * 40
 
 
-class ProductionMergeTests(unittest.TestCase):
+class ReleaseMergeTests(unittest.TestCase):
     def setUp(self):
         self.pr = {
             'state': 'open', 'merged': False,
@@ -24,10 +24,12 @@ class ProductionMergeTests(unittest.TestCase):
         self.assertEqual(module.inspect(self.pr, HEAD), {'state': 'closed'})
 
     def test_exact_merge_selects_each_service(self):
-        for service in ['frontend', 'catalogue', 'cart', 'orders']:
-            self.pr.update(state='closed', merged=True, merge_commit_sha=MERGE)
-            self.pr['head']['ref'] = f'jenkins/promote/production/{service}/12'
-            self.assertEqual(module.inspect(self.pr, HEAD), {'state': 'merged', 'commit': MERGE, 'service': service})
+        for target in ['dev', 'staging', 'production']:
+            for service in ['frontend', 'catalogue', 'cart', 'orders']:
+                with self.subTest(target=target, service=service):
+                    self.pr.update(state='closed', merged=True, merge_commit_sha=MERGE)
+                    self.pr['head']['ref'] = f'jenkins/promote/{target}/{service}/12'
+                    self.assertEqual(module.inspect(self.pr, HEAD), {'state': 'merged', 'commit': MERGE, 'service': service, 'target': target})
 
     def test_rejects_changed_head_fork_wrong_base_and_other_branches(self):
         for section, key, value in [
@@ -35,7 +37,7 @@ class ProductionMergeTests(unittest.TestCase):
             ('head', 'repo', {'full_name': 'attacker/boutique-gitops'}),
             ('base', 'repo', {'full_name': 'attacker/boutique-gitops'}),
             ('base', 'ref', 'other'),
-            ('head', 'ref', 'jenkins/promote/dev/frontend/12'),
+            ('head', 'ref', 'jenkins/promote/preview/frontend/12'),
             ('head', 'ref', 'jenkins/rollback/production/frontend/12'),
             ('head', 'ref', 'jenkins/promote/production/frontend/12/suffix'),
         ]:
