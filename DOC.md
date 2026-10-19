@@ -1,8 +1,8 @@
 # Boutique: understand, build and operate the project
 
-A practical DevOps learning guide. Snapshot checked on **18 October 2026**.
+A practical DevOps learning guide. Updated against the seven organisation repositories and verified operations on **19 October 2026**.
 
-Read this from top to bottom the first time. Later, use the contents as a reference. This describes the current laptop lab and its code; it does not claim that a laptop is a highly available production platform.
+For a first read, follow sections 1–5 for the big picture, 6–11 for delivery and operations, 12–14 for Python, and section 15 to rebuild it in stages. Sections 16 and 20 are your troubleshooting reference. Read this from top to bottom when you want the complete story. Later, use the contents as a reference. This describes the current laptop lab and its code; it does not claim that a laptop is a highly available production platform.
 
 **Do you need Python? Yes: enough to read, troubleshoot and safely change the automation you operate.** You do not need to memorize these programs or become an application developer. Sections 12–14 explain exactly what to learn and how the scripts work.
 
@@ -29,6 +29,7 @@ Commands in this document are instructions for you to run deliberately. Writing 
 17. [Learning exercises and interview explanations](#17-learning-exercises-and-interview-explanations)
 18. [Current limitations and unfinished work](#18-current-limitations-and-unfinished-work)
 19. [Source snapshot and further reading](#19-source-snapshot-and-further-reading)
+20. [Operating runbooks](#20-operating-runbooks-detect-recover-and-verify)
 
 ## 1. The project in plain English
 
@@ -166,7 +167,7 @@ The Kubernetes API endpoint currently uses a loopback address with a mapped port
 
 ## 4. Repositories and ownership
 
-This guide spans eight repositories. Example local paths use `/root/devops-boutique`; replace that prefix with your own workspace. This document is published in `boutique-ci`.
+The organisation contains seven project repositories. Optional cloud infrastructure is outside this organisation and is not required for this laptop setup. Example local paths use `/root/devops-boutique`; replace that prefix with your own workspace. This document is published in `boutique-ci`.
 
 | Repository | Owns | Start reading here |
 |---|---|---|
@@ -177,7 +178,6 @@ This guide spans eight repositories. Example local paths use `/root/devops-bouti
 | `boutique-ci` | Shared library, job definitions, release orchestration | `vars/`, `pipelines/`, `scripts/` |
 | `boutique-gitops` | Desired environments and selected release artifacts | `applications/`, `environments/`, `laptop-profiles/`, `scripts/` |
 | `boutique-platform` | Local platform, monitoring, rollout assets, verification, recovery | `scripts/`, `monitoring/`, `kubernetes/`, `local/` |
-| `boutique-infrastructure` | Optional AWS Terraform and database bootstrap | Terraform roots/modules, `scripts/` |
 
 Why separate these? A UI change should not require rewriting Kubernetes installation code. A replica change should not require rebuilding the UI. A CI implementation change should be reviewed independently from a production release selection.
 
@@ -194,7 +194,7 @@ infrastructure             -> optional cloud foundations
 
 The active GitOps applications are `boutique-dev`, `boutique-staging`, `boutique-production`, `boutique-monitoring-homelab` and `boutique-metrics-server`. The word `homelab` in the monitoring application is an active name; it does not mean that deleted legacy application profiles are still needed.
 
-Old platform guides can describe removed files and jobs. Use current code as the final authority. In particular, `scripts/production-lab.py` still refers to removed lab profiles and is **not the current cluster bootstrap command**.
+This is the single project guide. Platform’s retired two-cluster bootstrap and duplicate docs directory have been removed. Use the staged installation below and the active operator helpers; the current environment is kind-mega-local.
 
 ## 5. The complete release journey
 
@@ -219,9 +219,32 @@ If a step fails, investigate that step. Rebuilding a successfully published imag
 
 After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The generated QA promotion PR merges automatically after validation, followed by QA deployment verification and smoke tests.
 
-After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change and **manually merges** it after checks pass. A watcher waits for that merge and queues production verification against the merged GitOps commit.
+After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change; an authorised human **manually merges** it after checks pass. Approval authority and permission to perform the merge are separate: an allowed writer may merge an approved PR, but cannot skip its required review/checks. A watcher waits for that merge and queues production verification against the merged GitOps commit.
 
 Human changes across all seven repositories require Code-S-12 code-owner approval, passing checks and a PR. The Jenkins App has a PR-only review exemption for guarded dev/QA promotions; it cannot bypass the separately enforced required checks. New pushes dismiss earlier approvals. An approval and a merge are different actions; the watcher resumes after merge.
+
+```mermaid
+flowchart TD
+    A[Developer feature branch and PR] --> B[GitHub checks]
+    B --> C[Code-S-12 review and merge]
+    C --> D[Jenkins tests, builds, scans and publishes once]
+    D --> E[Generated dev GitOps PR]
+    E --> F[Required checks and guarded App merge]
+    F --> G[Argo dev deployment and HTTP verification]
+    G --> H[QA PR, required checks and guarded App merge]
+    H --> I[QA rollout analyses and HTTP verification]
+    I --> J[Production PR with Slack review request]
+    J --> K[Code-S-12 approval and human merge]
+    K --> L[Production rollout and HTTP verification]
+    I -->|failure| M[Block promotion; controller may restore stable traffic]
+    L -->|failure| M
+```
+
+Checks run before review is granted. A bot does not approve a developer's code.
+The `code-reviewers` team currently contains Code-S-12; CODEOWNERS names that
+account explicitly. Being an organisation owner or another team member does not
+replace the configured code-owner approval. Branch rules and App permissions are
+part of the delivery configuration, so check them when changing organisations.
 
 ### 5.3 Copying the image is the intended practice
 
@@ -576,14 +599,16 @@ Do not fix a sandbox rejection by granting unrestricted script execution or appr
 | Jenkins credential | Purpose | Never use it for |
 |---|---|---|
 | `github-read` | Read source | Publishing or administrator operations |
+| `github-service-ci` | Scoped GitHub App access/status reporting for the four service repos | Unrelated repos or organisation administration |
 | `ghcr-publish` | Publish approved artifacts | Untrusted PR code |
 | `gitops-release-app` | GitHub App authentication for release PRs | Broad personal-account administration |
+| `slack-delivery-webhook` | Channel-specific delivery notifications | PR runners, application containers or log output |
 | `gitops-checks` | Read GitOps PR/check metadata for release orchestration | Writing commit statuses or runtime Kubernetes administration |
 | `kubeconfig-dev` / `kubeconfig-staging` / `kubeconfig-production` | Read-only verification | Applying workloads or reading every Secret |
 
-A PAT fallback named `gitops-pr` exists, but the active setup uses the release App. Private CA credentials are only used when private-CA mode is enabled; public Cloudflare origins use normal public trust.
+Older instructions may name a PAT fallback `gitops-pr`; the active setup uses `gitops-release-app`. The organisation App needs Commit statuses read/write and installation access to the intended repos. The Jenkins service credential is scoped to the four services, while the release credential is scoped to GitOps. The App has no repository Administration permission. GitOps required checks have no App bypass; the separate PR-review exemption is used only by protected dev/QA authorization logic. Private CA credentials are only used when private-CA mode is enabled; public Cloudflare origins use normal public trust.
 
-Important global configuration includes `BOUTIQUE_CONTROLLER_ROLE=release`, `BOUTIQUE_RELEASE_AUTOMATION=true`, the three `BOUTIQUE_*_ORIGIN` values, and the expected release-bot credential/login. Match these to the library before enabling automation in a fresh installation.
+Important global configuration includes `BOUTIQUE_CONTROLLER_ROLE=release`, `BOUTIQUE_RELEASE_AUTOMATION=true`, the three `BOUTIQUE_*_ORIGIN` values, `BOUTIQUE_SLACK_ENABLED=true`, and the expected release-bot credential/login/numeric IDs. Match these to the library before enabling automation in a fresh installation.
 
 Never commit credential values into a Jenkinsfile, put them into Docker build arguments or paste them into a troubleshooting screenshot. A credential ID is a reference; it is not the credential itself.
 
@@ -736,6 +761,26 @@ python3 scripts/backup-k8s.py restore-drill \
 Use `--environment all` for backups of all three environments. The installed daily cron is scheduled at 02:30 with `flock` to prevent overlapping backup runs. A laptop that is off at that time misses the cron run. Verify timestamps and logs rather than assuming daily means successful daily.
 
 Backups are private local files, not CI artifacts. Local restore practice is the agreed scope. There is no off-laptop disaster-recovery guarantee, automatic point-in-time recovery or proven uptime SLA. A real production design needs an independently protected destination, retention, failure notification and measured restore objectives.
+
+### 11.5 What has actually been verified
+
+These are observed results from 19 October 2026, not permanent guarantees:
+
+| Boundary | Evidence and limit |
+|---|---|
+| Dev → QA → production | Frontend, catalogue and orders used the same published immutable images/charts; all three production verification jobs passed all 12 HTTP smoke checks each |
+| Review policy | Human changes require Code-S-12 review; generated guarded dev/QA PRs merged through the organisation App; production PRs waited for human review/merge |
+| Post-cutover recovery | A controlled QA frontend candidate received traffic, then an injected analysis failure caused automatic return to the original stable selector in about 14 seconds; this is an observation, not a recovery SLA |
+| Failed release gate | Jenkins QA verification #46 failed intentionally with an aborted-release message; it did not promote the failed attempt |
+| Recovery cleanup | Original QA specs/auto-sync restored and all 12 HTTP smoke checks passed; production was unchanged during the drill |
+| Merge retry logic | Deterministic tests cover transient recovery, bounded exhaustion, changed heads, conflicts, policy/permission rejection and concurrent completion; the original live GitHub race was not deliberately recreated after activation |
+| Slack | The actual reviewed shared-library helper delivered a connection-test message; not every real event type has been triggered end to end |
+| Monitoring restart fix | Permanent policies applied, temporary policies removed, fresh kube-state-metrics API access and populated Prometheus metrics verified; Grafana health returned HTTP 200 |
+
+Expected red drill builds are not unresolved application outages. Read the build
+reason before rerunning anything. A successful frontend recovery drill does not
+prove every backend failure, database restore, host disaster or external paging
+path. Repeat focused recovery exercises after material delivery changes.
 
 ## 12. Python knowledge a DevOps engineer needs
 
@@ -917,6 +962,8 @@ It waits for both required GitOps checks on the exact PR head, including the sho
 
 ### 14.2 CI: `scripts/release-merge.py`
 
+Concurrent eligible merges can receive HTTP405 while GitHub recomputes mergeability. The helper makes at most five SHA-bound merge attempts, waiting 5/10/20/40 seconds between attempts. Before a retry it re-reads PR identity/head and accepts only clean/unknown mergeability; changed heads, conflicts and policy/permission blocks stop it. This never bypasses required checks or human production review.
+
 It parses PR metadata and expected head identity to determine whether the exact promotion PR merged, closed without merge or still needs waiting. It validates the environment, service, promotion branch, repository and base constraints.
 
 The Jenkins watcher handles waiting; this Python code handles the structured decision. It avoids accepting an unrelated merge as permission to verify/deploy the requested release.
@@ -929,7 +976,7 @@ This is the most important Python program to understand after basic promotion.
 
 It checks trusted Git history, approved Argo source/profile, selected image/chart identity and actual rollout state. It waits through legitimate in-progress reconciliation and rejects a failed attempted release even if traffic recovered.
 
-Argo can advance to a later main revision while another service changes. The verifier can accept an appropriate descendant only when the requested service's selected image/chart still match; “latest revision” alone is insufficient.
+Argo can advance to a later main revision while another service changes. The verifier can accept an appropriate descendant only when the requested service's selected image/chart still match; “latest revision” alone is insufficient. If Argo reports a newer commit outside the initial clone snapshot, it refreshes only the approved protected-main history, then rechecks ancestry and the requested service image/chart. It does not fetch a revision supplied by an untrusted status as authority.
 
 Command shape:
 
@@ -1012,7 +1059,7 @@ Under `boutique-gitops/platform/argo-rollouts/`:
 
 A CRD must exist before Kubernetes can accept a resource of that kind. Schema validation should explicitly support these resources rather than skip all custom resources.
 
-### 14.9 Platform: local and legacy helpers
+### 14.9 Platform: local and administrative helpers
 
 | File/family | Status and purpose |
 |---|---|
@@ -1020,9 +1067,9 @@ A CRD must exist before Kubernetes can accept a resource of that kind. Schema va
 | `scripts/backup-local.sh`, `restore-drill.sh` | Compose database exercises |
 | `scripts/create-verifier-kubeconfig.sh` | Administrative creation of scoped verifier certificates/kubeconfigs |
 | `scripts/install-tools.sh` | Downloads pinned/checksummed Linux amd64 tools |
-| `scripts/production-lab.py` | Older two-cluster helper; deployment paths reference removed profiles |
-| `scripts/production-lab-tls-test.py` | Legacy TLS fixture exercise, not proof of current cluster TLS |
-| `scripts/test_production_lab.py` | Tests older helper behavior; does not establish current bootstrap compatibility |
+| `scripts/admin-account.py` | Explicit local-kind admin bootstrap/revoke for a registered user |
+| `tests/customer/lab.py`, `flow.py` | Disposable commerce preview and acceptance checks |
+| `local/controller-versions.lock.json` | Checksummed controller installation metadata, not a bootstrap script |
 
 The verifier helper requests a finite certificate, approves its own CSR and creates a private scoped kubeconfig. A cluster may shorten the requested lifetime. Track expiry and rotate the Jenkins Secret Files. Do not solve expiry by distributing the administrator kubeconfig.
 
@@ -1041,7 +1088,7 @@ The verifier helper requests a finite certificate, approves its own CSR and crea
 
 The optional incident bridge includes authentication, durable queue state, deduplication, retries, leases, dead-letter handling and metrics. Those features solve delivery reliability problems. You can explain its role without studying every queue operation before mastering the core release flow.
 
-It is not deployed as an active fifth boutique service. The platform Jenkinsfile's historical incident-bridge invocation is not supported by the current four-service `servicePipeline` allowlist. Activating it needs deliberate separate CI wiring.
+It is not deployed as an active fifth boutique service. The unsupported Platform Jenkinsfile was removed with the retired tooling. The shared `servicePipeline` supports only the four application services. Activating an incident-adapter publishing job needs deliberate separate CI wiring.
 
 ### 14.11 Infrastructure Python: optional AWS scope
 
@@ -1091,7 +1138,7 @@ one local service
 
 Do not start with Jenkins, three environments, ServiceNow, Terraform and automatic rollback simultaneously. Every milestone should have a visible success condition and a Git commit.
 
-This is a staged construction guide, not a claim that today's repository contains a single fully tested fresh-install command. Current ingress migration and the old bootstrap helper are real gaps. GitHub App installation, DNS, credentials and Jenkins configuration require values you own and deliberate setup.
+This is a staged construction guide, not a claim that today's repository contains a single fully tested fresh-install command. Ingress migration and proving the entire fresh-install sequence remain separate work; the incompatible legacy bootstrap has been removed. GitHub App installation, DNS, credentials and Jenkins configuration require values you own and deliberate setup.
 
 ### 15.2 Milestone 0: prepare a fresh learning machine
 
@@ -1240,9 +1287,9 @@ Do not assume secure browser sessions/checkout will work over this plain HTTP de
 
 ### 15.6 Milestone 4: install Argo CD and adopt dev
 
-Install a reviewed, pinned Argo release using its official installation procedure. The repository contains checksummed Argo installation assets in `boutique-platform/local/production-lab/versions.lock.json`; the older Python lab deploy command itself is incompatible with the current profile layout.
+Install a reviewed, pinned Argo release using its official installation procedure. The repository contains checksummed Argo installation assets in `boutique-platform/local/controller-versions.lock.json`. The obsolete two-cluster bootstrap is retired.
 
-Here is a way to download only the reviewed Argo manifest, verify it and apply the lock's image substitutions, without executing the old bootstrap helper:
+Here is a way to download only the reviewed Argo manifest, verify it and apply the lock's image substitutions, using the retained installation metadata:
 
 ```bash
 cd "$LABROOT/boutique-platform"
@@ -1252,7 +1299,7 @@ import json
 from pathlib import Path
 import urllib.request
 
-lock = json.loads(Path('local/production-lab/versions.lock.json').read_text())
+lock = json.loads(Path('local/controller-versions.lock.json').read_text())
 entry = lock['manifests']['argocd']
 with urllib.request.urlopen(entry['url'], timeout=60) as response:
     payload = response.read()
@@ -1600,7 +1647,7 @@ docker inspect jenkins --format '{{.HostConfig.RestartPolicy.Name}}'
 kubectl --context kind-mega-local cluster-info
 ```
 
-The current Jenkins container's restart policy is `no`; it may need a manual start after reboot:
+The current Jenkins container's restart policy is `unless-stopped`. Docker must start first; a container deliberately stopped by an operator may still need a manual start:
 
 ```bash
 # Changes state: starts the existing controller if stopped.
@@ -1689,21 +1736,21 @@ This is the boundary between working learning features and production claims:
 | Area | Current status / practical limit |
 |---|---|
 | Core source/release separation | Implemented with immutable image/chart promotion |
-| Production gate | Manual merge plus required checks; no independent-review requirement |
+| Production gate | Code-S-12 code-owner approval, required checks and human merge |
 | Shared library | Explicit reviewed SHA pin; changes require updating Jenkins configuration |
-| Latest unnecessary-rebuild filter | Active and regression-checked; fresh manual Jenkins exercise deferred |
+| Unnecessary-rebuild filter | Active; preserve immutable artifacts and avoid rebuilding unchanged release inputs |
 | HPA | QA/prod frontend 2–3; direct scaling/reconciliation/smoke exercise completed |
-| Automatic delivery recovery | QA/prod analysis window for all four services; no dev auto rollback |
+| Automatic delivery recovery | QA/prod analysis window for all four services; QA frontend post-cutover failure and Jenkins promotion blocking verified |
 | Recovery after the observation window | Operator diagnosis and corrective release/rollback; no universal continuous revert |
 | Jenkins capacity | Four agent executors share a small host; cross-job concurrency needs attention |
-| Reboot resilience | Jenkins container currently has restart policy `no`; inspect startup/service management |
+| Reboot resilience | Jenkins restart policy is unless-stopped; Docker/tunnel startup and host availability still need operational checks |
 | Ingress | Existing ingress-nginx needs migration to maintained software |
 | TLS | Public Cloudflare HTTPS; internal app/data TLS is not comprehensively enabled |
 | Cluster availability | One laptop; three kind nodes do not provide host-failure resilience |
 | Databases | Per-environment single-instance local services; production HA is not established |
 | Backups | Local backup/temporary restore drills; off-host DR, PITR and backup alerting not complete |
-| Monitoring | Useful metrics/log/rule tooling; verify actual receiver delivery and extend database/recovery signals |
-| Fresh installation | Staged steps and reviewed assets exist; legacy bootstrap helper is incompatible with removed profiles |
+| Monitoring | Metrics/log/rules active; Slack delivery verified; broader alert coverage still needs operational review |
+| Fresh installation | Staged steps and reviewed assets exist; obsolete two-cluster bootstrap removed |
 | Optional incident bridge | Code exists; not active fifth-service deployment/CI |
 | Optional AWS Terraform | Code and validation targets exist; deployment/operations are separate work |
 
@@ -1715,18 +1762,17 @@ For your learning goal, prioritize a fully understood release trace, troubleshoo
 
 The document was checked against fetched `origin/main` snapshots, not just potentially stale local branches:
 
-| Repository | Full revision |
+| Repository | Audited main revision before this cleanup PR |
 |---|---|
-| boutique-frontend | `734ce16cdd199a2cbb9d07621a28207466f6b6ee` |
-| boutique-catalogue | `48d1b3a196f079d99390108a37370e600664ef34` |
-| boutique-cart | `70f3b06c75d6bc493035380cb6eeb938afeaabbd` |
-| boutique-orders | `e894889c5709b23ea759991e2798562ff55af7ad` |
-| boutique-ci | `REVIEWED_CI_COMMIT_SHA` |
-| boutique-gitops | `7f9862cf9ef988bb2fe1a13fe2c4afb71e400989` |
-| boutique-platform | `e3d1af3a341dd5f8d102430d671cf202e752a877` |
-| boutique-infrastructure | `991338c791cc4c34035aa08fbcf98283432650bc` |
+| boutique-frontend | `515f4fe745ea63a79a5c0c265b259d3a44caa719` |
+| boutique-catalogue | `48519fa657ceb0521bdd14772c76ffa55277ae1e` |
+| boutique-cart | `a9a7bf30cc37bd77ad86ec4b3bc1316e85d79ed2` |
+| boutique-orders | `ca659b730a003caf93a8d25ea4b9bea35af5f467` |
+| boutique-ci | `03157ef6f725a410e050ab8016c9cd1d972bfb4d` |
+| boutique-gitops | `8bf157d7e23701fc3591eb1d7e37c3fe9e6764b2` |
+| boutique-platform | `1d9ae79151ef8ff0e872e6ef9dd5a71bb665de94` |
 
-Running configuration was inspected separately. Code at a revision and live installation state can differ; record both when debugging.
+These are the baseline revisions, not a self-referential claim that the guide knows its eventual merge SHA. This cleanup removes the obsolete Platform tooling and consolidates its useful instructions here; merge the guide before removing the old links. Running configuration was inspected separately. Code at a revision and live installation state can differ; record both when debugging.
 
 ### 19.2 Where to read the actual code next
 
@@ -1752,3 +1798,204 @@ Use these for the underlying product behavior, while using the project's code fo
 - [Prometheus alerting practices](https://prometheus.io/docs/practices/alerting/).
 - [Kubernetes security checklist](https://kubernetes.io/docs/concepts/security/security-checklist/).
 - [PostgreSQL continuous archiving and PITR](https://www.postgresql.org/docs/16/continuous-archiving.html), for understanding what local dump backups do not provide.
+
+## 20. Operating runbooks: detect, recover and verify
+
+This section replaces the former Platform docs directory. Keep this guide and
+the current code together when operating the project. The environment called
+production is still on the same laptop as dev and QA; its review process is real,
+but that does not give it independent hardware availability.
+
+### 20.1 Service down and rollout failure
+
+An alert is a reason to investigate, not proof of its root cause. Start with the
+customer impact, environment and time. Pause competing releases while recovering.
+Do not delete database volumes, reset Git main or regenerate credentials to clear
+an alert.
+
+```bash
+# Read only. Replace the namespace when investigating a different environment.
+kubectl --context kind-mega-local -n argocd get applications
+kubectl --context kind-mega-local -n boutique-staging get pods,deployments,rollouts
+kubectl --context kind-mega-local -n boutique-staging get events --sort-by=.lastTimestamp
+kubectl --context kind-mega-local -n boutique-staging get analysisruns
+kubectl --context kind-mega-local -n boutique-staging describe rollout frontend
+kubectl --context kind-mega-local -n boutique-staging get service frontend -o yaml
+```
+
+Read the failed container's current and previous logs as described in section 16.
+Compare the approved GitOps selection, actual image digest, analysis failure and
+active Service selector. For an aborted blue-green release, stable traffic can be
+healthy while the attempted release is correctly marked failed. Jenkins must
+block further promotion of that attempt.
+
+For an application regression, select a known-good protected GitOps commit and
+use `Release Operations/boutique-rollback`. Review image/chart and Flyway schema
+compatibility, review/merge the recovery PR, then run that environment's
+verification action with the resulting commit and expected immutable image.
+Rollback PRs do not automatically resume the normal promotion watcher. Confirm
+rollout health and the full HTTP smoke journey before declaring recovery.
+
+For data corruption/loss, use a separately validated database restore and
+controlled endpoint cutover. Traffic rollback does not undo migrations or recover
+orders. Never restore over a live database merely to demonstrate a drill.
+
+### 20.2 SLOs and budget burn
+
+An SLI measures a user outcome. An SLO is its target; an SLA is a separate customer
+commitment. Initial project learning targets are 99.9% eligible API/checkout
+response availability and 99% of successful eligible API requests completing
+within one second, evaluated over a rolling 30-day window. These are objectives,
+not claims of measured production uptime.
+
+Measure at the frontend so a request traversing several services is counted once.
+Exclude health/metrics/static/OPTIONS traffic and expected client-validation 4xx
+from response-availability denominators, but investigate unusual 4xx spikes.
+Use environment/cluster filters. DNS/TLS/host outages may produce no frontend
+request at all, so add independent external journey monitoring before claiming a
+complete availability measurement. Deployment smoke is not continuous monitoring.
+
+Homelab Prometheus requests 35-day retention and caps blocks at 4GB on its 5Gi PVC.
+Disk pressure can shorten that history. Missing samples, an empty denominator or
+insufficient coverage mean unknown, not 100% availability. Check the actual rules
+and recording expressions under GitOps `monitoring/files/homelab/boutique-prometheus/`.
+For burn alerts, confirm traffic, collection coverage and user errors before
+changing thresholds or silencing anything. Record silence owner, scope and expiry.
+
+### 20.3 Monitoring API access after a laptop restart
+
+The monitoring Application uses a deliberate sync operation; merging its PR
+alone does not guarantee it has applied. Check the reported source revision and
+last operation. The application environments use automatic reconciliation.
+
+```bash
+kubectl --context kind-mega-local -n argocd get application boutique-monitoring-homelab -o yaml
+kubectl --context kind-mega-local -n monitoring get pods
+kubectl --context kind-mega-local -n monitoring logs deployment/kube-state-metrics --tail=50
+kubectl --context kind-mega-local -n monitoring get networkpolicies
+kubectl --context kind-mega-local -n default get endpointslices -l kubernetes.io/service-name=kubernetes
+# Prints only the local network's address ranges, not container secrets.
+docker network inspect kind --format '{{json .IPAM.Config}}'
+```
+
+The verified kind subnet is 172.18.0.0/16. Laptop monitoring allows selected
+Prometheus, kube-state-metrics and Alloy collectors to that network on TCP 6443,
+so a control-plane IP change does not invalidate an old single-IP allowance.
+The Helm schema permits that exact subnet only for homelab, only on that port;
+other profiles retain single-IP (/32) validation. Do not copy this laptop network
+exception to an unrelated cluster or grant unrestricted egress.
+
+The earlier stale 172.18.0.2/32 rule caused API timeouts after the endpoint moved
+to 172.18.0.5. The permanent GitOps fix was applied, temporary recovery policies
+removed, and a fresh kube-state-metrics process verified against the API. If the
+Docker network itself changes, review the profile rather than silently enlarging
+its allowed range. Verify Grafana health, Prometheus targets, fresh pod/deployment
+metrics and log collection after recovery.
+
+### 20.4 Slack: monitoring alerts versus pipeline notifications
+
+These are two independent senders. They can use the same Slack app, but Jenkins
+does not automatically inherit Kubernetes secrets.
+
+| Sender | Credential location | Purpose |
+|---|---|---|
+| Alertmanager | Kubernetes monitoring-integrations secret, mounted webhook files | Operational monitoring alerts |
+| Jenkins boutiqueNotify | Jenkins Secret text ID slack-delivery-webhook | Delivery milestones and failures |
+
+To connect Jenkins, use an existing Slack app → Incoming Webhooks → Add New
+Webhook to Workspace → select #boutique-delivery → Allow. Save that URL privately
+in Jenkins Global Credentials as Secret text with ID slack-delivery-webhook.
+Enable the release-controller environment BOUTIQUE_SLACK_ENABLED=true only when
+the reviewed shared-library revision and credential are ready. The webhook is
+channel-specific; do not paste it into chat, Git, job parameters or logs.
+
+| Event | Message behavior |
+|---|---|
+| Service source build fails | Failure with Jenkins build link |
+| Dev/QA/production verification starts | Environment and service |
+| Verification passes | Rollout and functional smoke passed |
+| Verification fails | Promotion blocked; inspect the build |
+| Controller aborts and active Service matches stableRS | Stable traffic recovered; attempted release remains failed |
+| Production/recovery PR opens | Human review request plus PR link |
+| GitOps validator/watcher/recovery job fails | Automation failure with build link |
+
+The shared Groovy helper loads `resources/boutique/slack_notify.py`. It restricts
+webhook destinations, validates message fields and links, refuses redirects and
+uses a 10-second request timeout. Only a short rate-limit response is retried once.
+Notification failure produces a warning without changing the deployment result;
+cancellation remains cancellation. Check warnings: a green deployment does not
+prove that Slack received a message. The live shared-library connection test
+received Slack's HTTP 200/ok acknowledgement.
+
+Approvals remain in GitHub. Individual lint/build/scan success steps do not send
+messages. Hosted GitHub PR checks retain GitHub reporting; their runners never
+receive the Jenkins Slack credential. Rollback messages occur when Jenkins
+observes recovery; they are not an independent continuous alert subscription.
+
+### 20.5 Data restore and controller recovery
+
+Use section 11.4 for the active Kubernetes backup and temporary restore commands.
+The checksum identifies the dump; compare restored order IDs/counts/totals and
+migration state against its metadata. Restore only into an isolated target first.
+Keep the original session signing key and matching database/Redis credentials;
+regenerating them can make existing data or sessions unusable.
+
+For a lost host, source on GitHub is only one dependency. Recover reviewed Git
+commits, registry artifacts, database backups, Jenkins home, encryption material,
+session/TLS keys and scoped access. Local backups share the laptop failure
+boundary; the agreed local restore exercise does not prove host-loss recovery.
+For future off-host protection, choose access-controlled encrypted storage,
+retention and periodic restore verification explicitly.
+
+For Jenkins, restore the controller to an isolated host with triggers and agents
+disabled. Preserve its original credential encryption material and identity keys.
+Use compatible core/plugins, check job definitions, global untrusted-library and
+seed SHA pins, credential scopes and App installation permissions. Reconnect
+trusted workers only after those checks. Registry images and Git-pinned chart
+packages must survive independently of Jenkins job history. A count-based build
+retention setting is not a guaranteed number of days of artifact retention.
+
+RTO is time from impact to accepted service recovery; RPO is acknowledged data
+that cannot be recovered. Record actual times and restored-write checks. No full
+host/controller reconstruction RTO or regional DR guarantee has been measured.
+A database restore finishing is not end-to-end service recovery.
+
+For each drill record UTC start/end, intended scope, source/artifact revisions,
+failure evidence, automatic/manual recovery actions, backup identity if involved,
+functional results and remaining work. A test of one service does not certify all
+other services or database recovery.
+
+### 20.6 Administrator account and test fixtures
+
+The retained local admin helper changes the role of an already registered
+account and records the operator action. It does not create a password.
+
+```bash
+# Changes state: only after registering this account in the selected environment.
+cd /root/devops-boutique/boutique-platform
+python3 scripts/admin-account.py --context kind-mega-local \
+  --environment dev --email REPLACE_REGISTERED_ACCOUNT_EMAIL
+# Add --revoke to return that account to the customer role.
+```
+
+The customer fixture under tests/customer is a disposable Docker preview, not
+Argo deployment. Read each command's --help before using it; use local test
+payment credentials/fixtures. The optional ServiceNow incident adapter has
+isolated tests and no active fifth Jenkins service. Keep its SQLite profile to
+one worker; PostgreSQL queue concurrency, external receiver authorization and
+production deployment are separate tasks. Enabling a value does not build or
+publish a reviewed adapter image.
+
+### 20.7 Validation and safe cleanup
+
+Use the required workflow in each repo as the validation recipe. CI has Python
+unit tests; GitOps adds Helm/rendered-image/CRD validation; Platform tests verify
+release history, runtime rollout and backup/bootstrap contracts. Monitoring's
+`bash monitoring/validate.sh` checks native Prometheus/Alertmanager/Alloy configs
+and routes using local test fixtures. Do not run delivery tests against a real
+receiver without intentionally configuring that destination.
+
+Delete disposable test containers/namespaces by their exact names. Compose down
+preserves volumes; adding --volumes destroys that data. Never delete kind-mega-local,
+PVCs, database volumes or Jenkins home as repository housekeeping. Removed source
+files do not authorize deleting any existing private state or backup.
