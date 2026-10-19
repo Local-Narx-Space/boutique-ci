@@ -14,7 +14,10 @@ class GitOpsOrchestrationTests(unittest.TestCase):
         self.assertNotIn('scripts/validate.sh', pipeline)
         self.assertIn('Release Operations/boutique-release-verify', pipeline)
         self.assertIn('(dev|staging|production)', pipeline)
-        self.assertNotIn('merge_method=squash', pipeline)
+        self.assertIn('scripts/release-merge.py --auto-merge', pipeline)
+        self.assertIn('test "$GITOPS_PR_CREDENTIAL" = gitops-release-app', pipeline)
+        self.assertLess(pipeline.index('Wait for required GitHub PR checks'), pipeline.index('Automatically merge generated dev or QA release'))
+        self.assertIn('--candidate candidate', pipeline)
         self.assertNotIn('automatic-release.py', pipeline)
         self.assertNotIn("context='boutique/gitops-validation'", pipeline)
 

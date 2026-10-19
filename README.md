@@ -81,20 +81,35 @@ Keep this conservative non-release path list aligned with Docker build inputs.
 
 ## Required review and release continuation
 
-Every main-branch PR requires Code-S-12 code-owner approval and passing checks.
-Service PRs validate Helm and schemas before merge. Main builds publish immutable
-images/charts and create a dev GitOps PR. Dev, QA and production promotion PRs
-all require review and merge; Jenkins never bypasses their approval protection.
-The shared release-verify watcher waits without holding an executor and verifies
-the exact merged environment selection before requesting the next promotion.
-Closing a PR without merging ends that continuation; changing its head requires
-validation of the new revision. Required GitOps check registration is polled with
-a bounded timeout.
+Application, CI and platform changes require Code-S-12 code-owner approval and
+passing PR checks. Generated dev/QA GitOps image-and-chart promotions merge
+automatically after both required GitHub checks pass. Production, rollback and
+configuration changes require human review and merge. A shared release-verify
+watcher verifies the exact merged selection before requesting the next promotion.
 
-Service SCM discovery/status reporting uses github-service-ci, an organisation
-GitHub App credential scoped to the four service repositories, with Contents
-read and Commit statuses write access. Other tools retain github-read. After
-merging CI changes, activate that reviewed commit in the boutique-ci shared
-library and seed SCM, then run the seed with automatic builds enabled. The
-legacy production-only watcher can be disabled once it has no running builds;
-its history need not be deleted.
+The protected Jenkins validator allows automatic merging only for the configured
+App bot's exact head on a generated dev/staging service branch. It checks the
+complete file list, rejects renamed code/configuration, and parses the release
+YAML to ensure only the selected service image and chart version change. It never
+approves a PR or uses an administrator merge. Failed checks and merge conflicts
+remain blocking.
+
+`jenkins/policies/gitops-rulesets.json` separates three controls:
+- Main checks/history: nobody, including the App, can bypass either required check.
+- Main PR/review: humans require Code-S-12 approval. Only the Jenkins App has a
+  PR-only review exemption; the protected validator limits its use to dev/QA.
+- Generated promotion branches: only the App can create/update these heads, so
+  developers cannot modify a bot PR after creation. Normal feature branches are
+  unaffected. The App does not have repository-administration permission.
+
+Apply the reviewed policy definitions only after this CI change merges and its
+validator is active. Create the review and generated-branch rulesets first, then
+update the existing main ruleset, retaining uninterrupted review/check enforcement.
+Existing QA PRs can then be revalidated by Jenkins; no human approval of routine
+QA promotions is needed. Cancel their obsolete waiting watchers before requeuing
+to avoid duplicate verification jobs. Production remains human-reviewed.
+
+Service SCM discovery/status reporting uses github-service-ci, scoped to the four
+service repositories. Release PRs use the separately scoped gitops-release-app.
+After merging CI changes, activate the reviewed SHA in the boutique-ci shared
+library and seed SCM; run the seed with automatic builds enabled.

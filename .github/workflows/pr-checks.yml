@@ -18,5 +18,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
+      - name: Install YAML parser
+        run: python3 -m pip install --disable-pip-version-check PyYAML==6.0.3
       - name: Test release authorization and publication
         run: python3 -m unittest discover -s tests -v

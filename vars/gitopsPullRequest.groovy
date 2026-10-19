@@ -12,7 +12,7 @@ Rollback commit: ${params.GITOPS_COMMIT ?: 'Not applicable'}
 
 Review the image digest, chart package, validation result and database migration compatibility.
 For promotion, confirm the preceding environment's rollout and smoke tests passed.
-All promotion and rollback PRs require code-owner approval and passing checks before merge. A release watcher verifies merged promotions in every environment. Argo CD deploys merged changes.
+Generated dev/QA image-and-chart promotions merge automatically after required checks. Production, rollback and configuration changes require code-owner review. A shared watcher verifies every merged promotion. Argo CD deploys merged changes.
 """
     withCredentials([usernamePassword(credentialsId: credentialId, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
         withEnv(["GITOPS_ACTION=${action}", "SERVICE=${params.SERVICE}", "TARGET=${params.TARGET}"]) {

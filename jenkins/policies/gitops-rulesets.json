@@ -1,0 +1,124 @@
+{
+  "rulesets": [
+    {
+      "id": 25332527,
+      "definition": {
+        "name": "Protected main \u2014 required checks and history",
+        "target": "branch",
+        "enforcement": "active",
+        "bypass_actors": [],
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "rules": [
+          {
+            "type": "deletion"
+          },
+          {
+            "type": "non_fast_forward"
+          },
+          {
+            "type": "required_linear_history"
+          },
+          {
+            "type": "required_status_checks",
+            "parameters": {
+              "strict_required_status_checks_policy": false,
+              "do_not_enforce_on_create": false,
+              "required_status_checks": [
+                {
+                  "context": "PR checks",
+                  "integration_id": 15368
+                },
+                {
+                  "context": "GitOps manifest validation",
+                  "integration_id": 15368
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "name": "Protected main \u2014 reviewed pull requests",
+        "target": "branch",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "exclude": [],
+            "include": [
+              "refs/heads/main"
+            ]
+          }
+        },
+        "bypass_actors": [
+          {
+            "actor_id": 5369366,
+            "actor_type": "Integration",
+            "bypass_mode": "pull_request"
+          }
+        ],
+        "rules": [
+          {
+            "type": "pull_request",
+            "parameters": {
+              "required_approving_review_count": 1,
+              "dismiss_stale_reviews_on_push": true,
+              "required_reviewers": [],
+              "require_code_owner_review": true,
+              "dismissal_restriction": {
+                "enabled": false,
+                "allowed_actors": []
+              },
+              "require_last_push_approval": true,
+              "required_review_thread_resolution": true,
+              "require_extra_approval_for_unattributed_changes": true,
+              "allowed_merge_methods": [
+                "merge",
+                "squash",
+                "rebase"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "definition": {
+        "name": "Generated promotion branches \u2014 Jenkins App only",
+        "target": "branch",
+        "enforcement": "active",
+        "conditions": {
+          "ref_name": {
+            "include": [
+              "refs/heads/jenkins/promote/*/*/*"
+            ],
+            "exclude": []
+          }
+        },
+        "bypass_actors": [
+          {
+            "actor_id": 5369366,
+            "actor_type": "Integration",
+            "bypass_mode": "always"
+          }
+        ],
+        "rules": [
+          {
+            "type": "creation"
+          },
+          {
+            "type": "update"
+          }
+        ]
+      }
+    }
+  ]
+}
