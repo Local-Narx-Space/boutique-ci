@@ -1,3 +1,4 @@
+@Library('boutique-ci') _
 pipeline {
     agent { label 'trusted-release' }
     options { timestamps(); timeout(time: 40, unit: 'MINUTES'); disableConcurrentBuilds(); skipDefaultCheckout(true) }
@@ -112,4 +113,5 @@ PROMOTION
             } }
         }
     }
+    post { failure { boutiqueNotify(event: 'pipeline_failed') } }
 }

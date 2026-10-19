@@ -1,3 +1,4 @@
+@Library('boutique-ci') _
 pipeline {
     agent none
     options { timestamps(); timeout(time: 7, unit: 'DAYS'); skipDefaultCheckout(true) }
@@ -71,4 +72,5 @@ IMAGE
             }
         }
     }
+    post { failure { node('trusted-release') { boutiqueNotify(event: 'pipeline_failed') } } }
 }

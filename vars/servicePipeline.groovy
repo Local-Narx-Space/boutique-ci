@@ -174,6 +174,7 @@ def call(Map config) {
 
                 }
                 post {
+                    failure { script { boutiqueNotify(event: 'build_failed', service: config.service) } }
                     always {
                         archiveArtifacts artifacts: 'image.txt,image-digest.txt,source-commit.txt,sbom.json,image-scan.json,chart.tgz,chart-render.yaml', allowEmptyArchive: true, fingerprint: true
                         sh 'rm -rf .docker'
