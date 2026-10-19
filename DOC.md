@@ -202,14 +202,14 @@ Old platform guides can describe removed files and jobs. Use current code as the
 
 1. Create a service feature branch and change code.
 2. Push it and open a PR. GitHub Actions runs checks on an ephemeral runner without publishing/deployment credentials.
-3. Merge the checked PR into protected `main`.
+3. Obtain Code-S-12 code-owner approval and merge the checked PR into protected `main`.
 4. The service's Jenkins `main` job checks out that exact source revision.
 5. The library decides whether this change needs a release. It always scans the source for secrets.
 6. For a release: check/package Helm; run the test image and runtime build in parallel; scan the runtime image and generate its SBOM in parallel.
 7. Publish the image and chart. Record source SHA, image digest and chart archive as build artifacts.
 8. Queue the dev delivery job with that exact publishing build number.
 9. The dev job copies that build's release artifacts and edits the GitOps release selection.
-10. It creates a dev GitOps PR. Trusted validation checks it. Eligible bot-created dev promotions merge automatically after required checks pass.
+10. It creates a dev GitOps PR. Trusted validation checks it. Code-S-12 reviews it; merge requires approval and successful checks.
 11. Argo sees the merged desired state and reconciles dev.
 12. The dev job's verification action checks revision, image, chart, controller state and public functionality.
 
@@ -217,11 +217,11 @@ If a step fails, investigate that step. Rebuilding a successfully published imag
 
 ### 5.2 Dev to QA to production
 
-After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The QA promotion PR follows validation and eligible automatic merging, followed by QA deployment verification and smoke tests.
+After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The QA promotion PR requires validation, Code-S-12 approval and merge, followed by QA deployment verification and smoke tests.
 
-After QA verification succeeds, production promotion creates a production PR. The owner reviews the change and **manually merges** it after checks pass. A watcher waits for that merge and queues production verification against the merged GitOps commit.
+After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change and **manually merges** it after checks pass. A watcher waits for that merge and queues production verification against the merged GitOps commit.
 
-This is a single-owner lab workflow. Repository protections require checks and a PR, but require zero independent approving reviews. An approval and a merge are different actions. The automation's policy of waiting for your production merge is not an enforced two-person production control.
+All seven repositories require one independent code-owner approval from Code-S-12, passing checks and a PR. New pushes dismiss earlier approvals. An approval and a merge are different actions; the watcher resumes after merge.
 
 ### 5.3 Copying the image is the intended practice
 
@@ -487,7 +487,7 @@ Narrow Argo ignore rules, together with `RespectIgnoreDifferences`, allow that c
 | `Deployments/boutique-deploy-qa` | Promote to staging or verify staging |
 | `Deployments/boutique-deploy-prod` | Propose production promotion or verify production |
 | `Release Operations/boutique-gitops-validate` | Wait for required GitHub PR checks, then handle eligible release PRs |
-| `Release Operations/boutique-production-verify` | Watch a production promotion PR for manual merge, then queue verification |
+| `Release Operations/boutique-release-verify` | Watch a promotion PR in any environment for merge, then queue verification |
 | `Release Operations/boutique-rollback` | Propose a known-good release through a GitOps PR |
 | `Administration/boutique-seed-release-pipeline` | Create/update job definitions from reviewed CI code |
 
@@ -541,21 +541,21 @@ It creates a release branch, commits allowed GitOps changes, opens a PR, queues 
 | `deploy-dev.Jenkinsfile` | Small wrapper fixing target to dev |
 | `deploy-qa.Jenkinsfile` | Small wrapper fixing target to staging |
 | `deploy-prod.Jenkinsfile` | Small wrapper fixing target to production |
-| `gitops-validate.Jenkinsfile` | Waits for required GitHub checks on the exact PR head, then handles eligible merge/verification actions |
-| `production-verify.Jenkinsfile` | Waits for manual production merge without holding an executor throughout polling |
+| `gitops-validate.Jenkinsfile` | Waits for required GitHub checks on the exact PR head, then queues the merge watcher |
+| `release-verify.Jenkinsfile` | Waits for reviewed dev/QA/production merges without holding an executor throughout polling |
 | `rollback.Jenkinsfile` | Requires a known-good full GitOps revision and creates a rollback PR |
 | `seed-release.Jenkinsfile` | Loads Job DSL definitions with controlled bootstrap behavior |
 
-The GitOps pull request workflow runs fast policy tests and full Helm/schema/image validation for every PR. Its validator uses scripts from the protected base revision and treats PR content as configuration data. Jenkins waits for the required GitHub checks before any automatic dev/staging merge or production-verification handoff; it does not duplicate manifest validation. The PR head is checked again so results for commit A cannot silently authorize a later commit B.
+The GitOps pull request workflow runs fast policy tests and full Helm/schema/image validation for every PR. Its validator uses scripts from the protected base revision and treats PR content as configuration data. Jenkins waits for the required GitHub checks before any release-verification handoff; it does not duplicate manifest validation. The PR head is checked again so results for commit A cannot silently authorize a later commit B.
 
-Eligible bot dev/staging promotion PRs may merge automatically after required checks. Production promotions and rollback PRs do not follow that automatic-merge path.
+All promotion PRs require code-owner review and successful checks. The release watcher never approves or merges a PR. Rollback PRs still require explicit post-merge verification.
 
 ### 9.5 Shared-library pinning
 
 The global untrusted library is named `boutique-ci`. Its current default is pinned to:
 
 ```text
-3c0485e624c8e48ad75ce4fb9ca01aecf4ef32a7
+REVIEWED_CI_COMMIT_SHA
 ```
 
 The seed SCM revision is pinned as well. These are deliberate immutable references. Merging a CI PR does not automatically advance either explicit pin.
@@ -629,7 +629,7 @@ git diff -- environments/production
 
 Use a clean branch and full trusted history; the script checks approved `origin/main` ancestry. Do not execute this on a dirty checkout or substitute a service source SHA.
 
-Rollback PRs need manual merging. The ordinary production-promotion watcher recognizes promotion branches, so do not assume a manual rollback PR automatically receives the same verification handoff. After merging, explicitly run the fixed environment job's verification action with the merged revision and selected image, or run the local verifier and smoke test deliberately.
+Rollback PRs need manual merging. The ordinary release-promotion watcher recognizes promotion branches, so do not assume a manual rollback PR automatically receives the same verification handoff. After merging, explicitly run the fixed environment job's verification action with the merged revision and selected image, or run the local verifier and smoke test deliberately.
 
 Avoid `kubectl set image` as the normal rollback method: Argo can restore the Git-selected image. Emergency live intervention must be followed by a reconciled Git change and verified recovery.
 
@@ -911,19 +911,13 @@ This file is advanced. Understand what it protects before attempting to simplify
 
 ## 14. CI, platform and infrastructure Python explained
 
-### 14.1 CI: `scripts/automatic-release.py`
+### 14.1 CI: `scripts/wait-for-pr-checks.py`
 
-Location: `boutique-ci`.
+It waits for both required GitOps checks on the exact PR head, including the short gap before GitHub Actions registers its runs. Only checks from the GitHub Actions integration count. Failed/cancelled checks, a changed head, API failure or timeout stop the pipeline. The helper reads status; it never approves or merges a PR.
 
-It decides whether a candidate PR is eligible for automatic dev/staging release merging. It verifies the expected bot identity, head SHA, base/repository and allowed release-change paths. It rejects production/rollback or unexpected edits rather than treating any bot-looking branch as trusted.
+### 14.2 CI: `scripts/release-merge.py`
 
-The surrounding pipeline waits for required checks and uses normal GitHub merge controls. There is no administrator-bypass merge path intended here.
-
-Understand this as an authorization program: “Does this exact change meet our narrow automatic-release policy?” It is not simply a helper that clicks a merge button.
-
-### 14.2 CI: `scripts/production-merge.py`
-
-It parses PR metadata and expected head identity to determine whether the exact production promotion PR merged, closed without merge or still needs waiting. It validates the production promotion branch/repository/base constraints.
+It parses PR metadata and expected head identity to determine whether the exact promotion PR merged, closed without merge or still needs waiting. It validates the environment, service, promotion branch, repository and base constraints.
 
 The Jenkins watcher handles waiting; this Python code handles the structured decision. It avoids accepting an unrelated merge as permission to verify/deploy the requested release.
 
@@ -1727,7 +1721,7 @@ The document was checked against fetched `origin/main` snapshots, not just poten
 | boutique-catalogue | `48d1b3a196f079d99390108a37370e600664ef34` |
 | boutique-cart | `70f3b06c75d6bc493035380cb6eeb938afeaabbd` |
 | boutique-orders | `e894889c5709b23ea759991e2798562ff55af7ad` |
-| boutique-ci | `3c0485e624c8e48ad75ce4fb9ca01aecf4ef32a7` |
+| boutique-ci | `REVIEWED_CI_COMMIT_SHA` |
 | boutique-gitops | `7f9862cf9ef988bb2fe1a13fe2c4afb71e400989` |
 | boutique-platform | `e3d1af3a341dd5f8d102430d671cf202e752a877` |
 | boutique-infrastructure | `991338c791cc4c34035aa08fbcf98283432650bc` |

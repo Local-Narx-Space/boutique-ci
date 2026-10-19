@@ -78,3 +78,23 @@ builds do not become the publication baseline. Unknown paths, missing history,
 first releases, runtime/dependency/Dockerfile/Helm changes take the full path.
 Rename detection is disabled so moving application inputs into docs still builds.
 Keep this conservative non-release path list aligned with Docker build inputs.
+
+## Required review and release continuation
+
+Every main-branch PR requires Code-S-12 code-owner approval and passing checks.
+Service PRs validate Helm and schemas before merge. Main builds publish immutable
+images/charts and create a dev GitOps PR. Dev, QA and production promotion PRs
+all require review and merge; Jenkins never bypasses their approval protection.
+The shared release-verify watcher waits without holding an executor and verifies
+the exact merged environment selection before requesting the next promotion.
+Closing a PR without merging ends that continuation; changing its head requires
+validation of the new revision. Required GitOps check registration is polled with
+a bounded timeout.
+
+Service SCM discovery/status reporting uses github-service-ci, an organisation
+GitHub App credential scoped to the four service repositories, with Contents
+read and Commit statuses write access. Other tools retain github-read. After
+merging CI changes, activate that reviewed commit in the boutique-ci shared
+library and seed SCM, then run the seed with automatic builds enabled. The
+legacy production-only watcher can be disabled once it has no running builds;
+its history need not be deleted.

@@ -19,7 +19,7 @@ services.each { service ->
     source {
      github {
       id("boutique-${service}-trusted-main")
-      credentialsId('github-read')
+      credentialsId('github-service-ci')
       repoOwner('Local-Narx-Space')
       repository("boutique-${service}")
       repositoryUrl("https://github.com/Local-Narx-Space/boutique-${service}")
@@ -45,7 +45,7 @@ services.each { service ->
   triggers { periodicFolderTrigger { interval('1d') } }
  }
 }
-['deploy-dev','deploy-qa','deploy-prod','rollback','gitops-validate','production-verify'].each { job ->
+['deploy-dev','deploy-qa','deploy-prod','rollback','gitops-validate','release-verify'].each { job ->
  def target = ['deploy-dev':'dev','deploy-qa':'staging','deploy-prod':'production'][job]
  def folder = target ? 'Deployments' : 'Release Operations'
  pipelineJob("${folder}/boutique-${job}") {
@@ -66,8 +66,8 @@ services.each { service ->
     stringParam('GITOPS_COMMIT', '', 'Previous protected-main commit containing the known-good service image/chart')
    } else if (job == 'gitops-validate') {
     stringParam('PR_NUMBER', '', 'GitOps PR number to validate')
-   } else if (job == 'production-verify') {
-    stringParam('PR_NUMBER', '', 'Validated production promotion PR')
+   } else if (job == 'release-verify') {
+    stringParam('PR_NUMBER', '', 'Validated promotion PR for any environment')
     stringParam('PR_HEAD_SHA', '', 'Exact validated PR head')
    }
   }
