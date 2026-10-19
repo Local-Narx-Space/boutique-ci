@@ -209,7 +209,7 @@ Old platform guides can describe removed files and jobs. Use current code as the
 7. Publish the image and chart. Record source SHA, image digest and chart archive as build artifacts.
 8. Queue the dev delivery job with that exact publishing build number.
 9. The dev job copies that build's release artifacts and edits the GitOps release selection.
-10. It creates a dev GitOps PR. Trusted validation checks it. Code-S-12 reviews it; merge requires approval and successful checks.
+10. It creates a dev GitOps PR. Trusted validation checks it. The Jenkins App merges generated dev promotions after both required checks pass; a strict guard permits only the selected service image/chart change.
 11. Argo sees the merged desired state and reconciles dev.
 12. The dev job's verification action checks revision, image, chart, controller state and public functionality.
 
@@ -217,11 +217,11 @@ If a step fails, investigate that step. Rebuilding a successfully published imag
 
 ### 5.2 Dev to QA to production
 
-After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The QA promotion PR requires validation, Code-S-12 approval and merge, followed by QA deployment verification and smoke tests.
+After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The generated QA promotion PR merges automatically after validation, followed by QA deployment verification and smoke tests.
 
 After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change and **manually merges** it after checks pass. A watcher waits for that merge and queues production verification against the merged GitOps commit.
 
-All seven repositories require one independent code-owner approval from Code-S-12, passing checks and a PR. New pushes dismiss earlier approvals. An approval and a merge are different actions; the watcher resumes after merge.
+Human changes across all seven repositories require Code-S-12 code-owner approval, passing checks and a PR. The Jenkins App has a PR-only review exemption for guarded dev/QA promotions; it cannot bypass the separately enforced required checks. New pushes dismiss earlier approvals. An approval and a merge are different actions; the watcher resumes after merge.
 
 ### 5.3 Copying the image is the intended practice
 
@@ -541,14 +541,14 @@ It creates a release branch, commits allowed GitOps changes, opens a PR, queues 
 | `deploy-dev.Jenkinsfile` | Small wrapper fixing target to dev |
 | `deploy-qa.Jenkinsfile` | Small wrapper fixing target to staging |
 | `deploy-prod.Jenkinsfile` | Small wrapper fixing target to production |
-| `gitops-validate.Jenkinsfile` | Waits for required GitHub checks on the exact PR head, then queues the merge watcher |
+| `gitops-validate.Jenkinsfile` | Waits for required GitHub checks on the exact PR head, then merges eligible dev/QA releases and queues the merge watcher |
 | `release-verify.Jenkinsfile` | Waits for reviewed dev/QA/production merges without holding an executor throughout polling |
 | `rollback.Jenkinsfile` | Requires a known-good full GitOps revision and creates a rollback PR |
 | `seed-release.Jenkinsfile` | Loads Job DSL definitions with controlled bootstrap behavior |
 
 The GitOps pull request workflow runs fast policy tests and full Helm/schema/image validation for every PR. Its validator uses scripts from the protected base revision and treats PR content as configuration data. Jenkins waits for the required GitHub checks before any release-verification handoff; it does not duplicate manifest validation. The PR head is checked again so results for commit A cannot silently authorize a later commit B.
 
-All promotion PRs require code-owner review and successful checks. The release watcher never approves or merges a PR. Rollback PRs still require explicit post-merge verification.
+Generated dev/QA promotions are merged by the protected validator after strict App/head/path/semantic authorization and successful checks. Production and configuration changes require code-owner review. The release watcher observes merges; it does not approve PRs. Rollback PRs still require explicit post-merge verification.
 
 ### 9.5 Shared-library pinning
 
@@ -1669,7 +1669,7 @@ Then state the boundary honestly: this runs on one laptop, so it demonstrates pr
 22. **What is missing from a local backup?** Protection from losing the whole laptop, off-host retention and a proven disaster-recovery process.
 23. **How do you debug stale UI?** Trace release identities before investigating cache behavior.
 24. **How do you optimize CI?** Measure bottlenecks, reuse safe work, scope checks, parallelize within resource limits and avoid unnecessary releases.
-25. **Does this lab have independent reviewer enforcement?** Yes; all seven repositories require Code-S-12 code-owner approval and successful checks.
+25. **Does this lab have independent reviewer enforcement?** Yes for human code/configuration and production changes. Generated dev/QA promotions use the guarded Jenkins App review exemption; required checks always apply.
 26. **Is a service mesh mandatory?** No. Add it only for concrete requirements that justify its operational cost.
 
 ### 17.4 How to grow the code cleanly

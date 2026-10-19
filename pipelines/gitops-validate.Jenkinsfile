@@ -67,6 +67,29 @@ PR
                 }
             }
         }
+        stage('Automatically merge generated dev or QA release') {
+            when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
+            steps {
+                withCredentials([usernamePassword(credentialsId: env.GITOPS_PR_CREDENTIAL, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
+                    sh '''set +x
+                        set -eu
+                        test "$GITOPS_PR_CREDENTIAL" = gitops-release-app
+                        test "$GIT_USER" = "$GITOPS_APP_ID"
+                        gh api "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER" > current-pr.json
+                        gh api --paginate --slurp "repos/Local-Narx-Space/boutique-gitops/pulls/$PR_NUMBER/files?per_page=100" > pr-files.json
+                        python3 automation/scripts/release-merge.py --auto-merge --pr current-pr.json \
+                            --head "$PR_HEAD_SHA" --number "$PR_NUMBER" --files pr-files.json \
+                            --candidate candidate --bot "$GITOPS_BOT_LOGIN" --bot-id "$GITOPS_BOT_ID" > automatic-merge.json
+                        python3 - <<'MERGE'
+import json
+from pathlib import Path
+result = json.loads(Path('automatic-merge.json').read_text())
+print('Generated nonproduction release merged.' if result.get('merged') else 'Human review or GitHub merge readiness is still required.')
+MERGE
+                    '''
+                }
+            }
+        }
         stage('Queue reviewed release merge watcher') {
             when { expression { env.BOUTIQUE_RELEASE_AUTOMATION == 'true' } }
             steps { script {
