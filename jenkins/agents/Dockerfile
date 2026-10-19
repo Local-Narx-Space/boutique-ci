@@ -21,4 +21,6 @@ RUN python3 /usr/local/lib/boutique/install-agent-tools.py --destination /opt/bo
     && docker --version && docker buildx version && java -version \
     && python3 -c 'import yaml' && openssl version
 ENV PATH="/opt/boutique-agent-tools/bin:${PATH}"
+# Numeric UID overrides may have no passwd entry; keep caches in the mounted home.
+ENV HOME=/home/jenkins
 USER jenkins
