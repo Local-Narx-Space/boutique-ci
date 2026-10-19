@@ -219,7 +219,7 @@ If a step fails, investigate that step. Rebuilding a successfully published imag
 
 After dev verification succeeds, the QA promotion job copies the selected **image digest and exact chart package** from dev into staging. It does not rebuild the service image. The generated QA promotion PR merges automatically after validation, followed by QA deployment verification and smoke tests.
 
-After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change and **manually merges** it after checks pass. A watcher waits for that merge and queues production verification against the merged GitOps commit.
+After QA verification succeeds, production promotion creates a production PR. Code-S-12 reviews the change; an authorised human **manually merges** it after checks pass. Approval authority and permission to perform the merge are separate: an allowed writer may merge an approved PR, but cannot skip its required review/checks. A watcher waits for that merge and queues production verification against the merged GitOps commit.
 
 Human changes across all seven repositories require Code-S-12 code-owner approval, passing checks and a PR. The Jenkins App has a PR-only review exemption for guarded dev/QA promotions; it cannot bypass the separately enforced required checks. New pushes dismiss earlier approvals. An approval and a merge are different actions; the watcher resumes after merge.
 
