@@ -39,6 +39,10 @@ Generated dev/QA image-and-chart promotions merge automatically after required c
     withCredentials([usernamePassword(credentialsId: credentialId, usernameVariable: 'GIT_USER', passwordVariable: 'GH_TOKEN')]) {
         sh 'set +x; gh pr view --repo Local-Narx-Space/boutique-gitops "$(cat gitops-pr-url.txt)" --json number --jq .number > gitops-pr-number.txt'
     }
+    def prUrl = readFile('gitops-pr-url.txt').trim()
+    if (action == 'rollback' || params.TARGET == 'production') {
+        boutiqueNotify(event: action == 'rollback' ? 'recovery_review' : 'approval_required', service: params.SERVICE, target: params.TARGET, prUrl: prUrl)
+    }
     def number = readFile('gitops-pr-number.txt').trim()
     if (!(number ==~ /[1-9][0-9]*/)) { error('Missing GitOps PR number') }
     // Queue validation in its own job without holding up PR creation.

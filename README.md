@@ -121,3 +121,41 @@ Service SCM discovery/status reporting uses github-service-ci, scoped to the fou
 service repositories. Release PRs use the separately scoped gitops-release-app.
 After merging CI changes, activate the reviewed SHA in the boutique-ci shared
 library and seed SCM; run the seed with automatic builds enabled.
+
+## Slack release notifications
+
+One shared `boutiqueNotify` helper sends channel-specific Incoming Webhook messages;
+no Jenkins plugin or restart is required. It runs only on the release controller
+when `BOUTIQUE_SLACK_ENABLED=true`, on an allocated trusted agent. Keep it disabled
+until the credential and reviewed library revision are configured.
+
+Create or reuse a Slack app, enable Incoming Webhooks, and authorize one webhook
+for `#boutique-delivery`. Save the URL as Jenkins **Secret text**, global credential
+ID `slack-delivery-webhook`. The webhook fixes the destination channel; it grants
+no channel/history reading permissions. Never commit the URL or paste it in a PR.
+Setup: https://docs.slack.dev/messaging/sending-messages-using-incoming-webhooks/
+
+Messages cover source-build failures; dev/QA/production verification start and
+result; production approval requests with the GitOps PR link; recovery PR review;
+and GitOps validation/watcher/recovery-job failures. A deployment failure is marked
+as recovered rollback only if Kubernetes reports an aborted Rollout and the active
+Service selector matches its stable ReplicaSet. Recovery snapshots are archived.
+This reports recovery when Jenkins verification observes it, not an independent
+continuous alert subscription. Hosted GitHub PR checks keep their GitHub reporting;
+they do not receive the Jenkins Slack credential.
+
+Every message links the Jenkins build; review requests also link the PR. Approvals
+still happen in GitHub. No arbitrary build logs, commit messages, exception bodies,
+secrets or user-provided URLs are sent. The sender allows only `hooks.slack.com`
+HTTPS webhook URLs, refuses redirects, uses a 10-second request timeout, and retries
+a rate-limit response only once when Retry-After is at most 10 seconds. Permission
+errors and ambiguous network failures are not retried. Notification failures produce
+a Jenkins warning without changing the deployment result; build cancellation is
+preserved. Individual lint/build/scan steps do not generate success messages.
+
+After Code-S-12 approves and merges this change, pin the actual merged SHA in the
+untrusted global library and seed SCM, then run the seed. Configure the release
+controller global environment `BOUTIQUE_SLACK_ENABLED=true` and test once on a
+trusted agent with `boutiqueNotify(event: 'test')`. A confirmed test proves channel
+connectivity; unit tests alone do not prove live Slack delivery. Disable the flag
+to stop notifications without altering deployments.

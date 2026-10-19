@@ -43,6 +43,7 @@ pipeline {
                 }
                 if (!env.BASE_URL || !(env.BASE_URL.startsWith('https://') || (params.TARGET == 'dev' && env.BASE_URL == 'http://localhost:8088'))) { error('Configure HTTPS; only laptop dev may use http://localhost:8088') }
                 }
+                if (params.ACTION == 'verify') { boutiqueNotify(event: 'deployment_started', service: params.SERVICE, target: params.TARGET) }
             } }
         }
         stage('Checkout release tools') {
@@ -149,6 +150,37 @@ pipeline {
             }
         }
     }
-    post { always { archiveArtifacts artifacts:'reports/*', allowEmptyArchive:true, fingerprint:true } }
+    post {
+        success { script {
+            if (params.ACTION == 'verify') { boutiqueNotify(event: 'deployment_passed', service: params.SERVICE, target: params.TARGET) }
+        } }
+        failure { script {
+            // Capture actual recovery evidence; never label every failed build a rollback.
+            def recovered = false
+            if (params.ACTION == 'verify' && params.TARGET in ['staging','production'] &&
+                params.SERVICE in ['frontend','catalogue','cart','orders']) {
+                try {
+                    withCredentials([file(credentialsId: "kubeconfig-${params.TARGET}", variable: 'KUBECONFIG')]) {
+                        sh(returnStatus: true, script: '''set +x
+                            mkdir -p reports
+                            kubectl -n "boutique-$TARGET" get rollout.argoproj.io "$SERVICE" -o json > reports/failed-rollout.json
+                            kubectl -n "boutique-$TARGET" get service "$SERVICE" -o json > reports/recovered-service.json
+                        ''')
+                    }
+                    recovered = sh(returnStatus: true, script: '''python3 - <<'RECOVERY'
+import json
+r = json.load(open('reports/failed-rollout.json')).get('status', {})
+s = json.load(open('reports/recovered-service.json'))
+assert r.get('abort') is True
+assert r.get('stableRS') and s['spec']['selector']['rollouts-pod-template-hash'] == r['stableRS']
+RECOVERY
+''') == 0
+                } catch (org.jenkinsci.plugins.workflow.steps.FlowInterruptedException interrupted) { throw interrupted
+                } catch (Exception ignored) { echo 'Recovery evidence unavailable; reporting verification failure.' }
+            }
+            boutiqueNotify(event: recovered ? 'rollback_recovered' : 'deployment_failed', service: params.SERVICE, target: params.TARGET)
+        } }
+        cleanup { archiveArtifacts artifacts:'reports/*', allowEmptyArchive:true, fingerprint:true }
+    }
 }
 }

@@ -36,4 +36,5 @@ pipeline {
         }
         stage('Open recovery PR') { steps { gitopsPullRequest(action: 'rollback') } }
     }
+    post { failure { boutiqueNotify(event: 'pipeline_failed', service: params.SERVICE, target: params.TARGET) } }
 }
