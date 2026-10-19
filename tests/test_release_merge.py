@@ -149,7 +149,76 @@ class AutomaticPromotionTests(unittest.TestCase):
             def opener(request, timeout):
                 raise urllib.error.HTTPError(request.full_url, code, 'refused', {}, None)
             with self.subTest(code=code), self.assertRaises(ValueError):
-                module.merge('12', HEAD, 'fixture-token', opener)
+                module.merge('12', HEAD, 'fixture-token', opener, sleep=lambda _: None)
+
+    def retry_opener(self, outcomes, snapshot=None):
+        calls = []
+        pr = copy.deepcopy(self.pr if snapshot is None else snapshot)
+        if snapshot is None:
+            pr.update(mergeable=True, mergeable_state='clean')
+        def opener(request, timeout):
+            calls.append(request)
+            if request.get_method() == 'GET':
+                return io.StringIO(json.dumps(pr))
+            outcome = outcomes.pop(0)
+            if isinstance(outcome, int):
+                raise urllib.error.HTTPError(request.full_url, outcome, 'refused', {}, None)
+            return io.StringIO(json.dumps(outcome))
+        return opener, calls
+
+    def test_transient_405_rechecks_head_and_retries_same_sha(self):
+        opener, calls = self.retry_opener([405, 405, {'merged': True, 'sha': MERGE}])
+        sleeps = []
+        self.assertTrue(module.merge('12', HEAD, 'fixture-token', opener, sleeps.append)['merged'])
+        self.assertEqual(sleeps, [5, 10])
+        self.assertEqual([c.get_method() for c in calls], ['PUT', 'GET', 'PUT', 'GET', 'PUT'])
+        for c in calls:
+            if c.get_method() == 'PUT': self.assertEqual(json.loads(c.data)['sha'], HEAD)
+
+    def test_retry_budget_is_bounded(self):
+        opener, calls = self.retry_opener([405] * 5)
+        sleeps = []
+        with self.assertRaisesRegex(ValueError, 'after 5 attempts'):
+            module.merge('12', HEAD, 'fixture-token', opener, sleeps.append)
+        self.assertEqual(sleeps, [5, 10, 20, 40])
+        self.assertEqual(sum(c.get_method() == 'PUT' for c in calls), 5)
+
+    def test_unknown_mergeability_can_settle(self):
+        pr = copy.deepcopy(self.pr)
+        pr.update(mergeable=None, mergeable_state='unknown')
+        opener, _ = self.retry_opener([405, {'merged': True, 'sha': MERGE}], pr)
+        self.assertTrue(module.merge('12', HEAD, 'fixture-token', opener, lambda _: None)['merged'])
+
+    def test_changed_head_conflict_closed_draft_or_policy_block_stops_retry(self):
+        for change in ['head', 'conflict', 'closed', 'draft', 'blocked', 'behind']:
+            pr = copy.deepcopy(self.pr)
+            pr.update(mergeable=True, mergeable_state='clean')
+            if change == 'head': pr['head']['sha'] = MERGE
+            elif change == 'conflict': pr['mergeable'] = False
+            elif change == 'closed': pr['state'] = 'closed'
+            elif change == 'draft': pr['draft'] = True
+            else: pr['mergeable_state'] = change
+            opener, calls = self.retry_opener([405], pr)
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                module.merge('12', HEAD, 'fixture-token', opener, lambda _: None)
+            self.assertEqual([c.get_method() for c in calls], ['PUT', 'GET'])
+
+    def test_permission_and_head_refusals_are_not_retried(self):
+        for code in [403, 409, 422]:
+            opener, calls = self.retry_opener([code])
+            sleeps = []
+            with self.subTest(code=code), self.assertRaises(ValueError):
+                module.merge('12', HEAD, 'fixture-token', opener, sleeps.append)
+            self.assertEqual(sleeps, [])
+            self.assertEqual(len(calls), 1)
+
+    def test_another_worker_merging_exact_head_is_success(self):
+        pr = copy.deepcopy(self.pr)
+        pr.update(state='closed', merged=True, merge_commit_sha=MERGE)
+        opener, calls = self.retry_opener([405], pr)
+        self.assertEqual(module.merge('12', HEAD, 'fixture-token', opener, lambda _: None),
+                         {'merged': True, 'commit': MERGE})
+        self.assertEqual([c.get_method() for c in calls], ['PUT', 'GET'])
 
     def test_authenticated_redirect_is_refused(self):
         with self.assertRaises(ValueError):

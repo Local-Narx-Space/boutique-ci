@@ -6,6 +6,8 @@ import json
 import os
 import re
 import subprocess
+import sys
+import time
 from pathlib import Path
 import urllib.error
 import urllib.request
@@ -87,28 +89,51 @@ def automatic_request(pr, head, files, bot, bot_id):
     return {'target': target, 'service': service, 'head': head}
 
 
-def merge(number, head, token, opener=None):
+def merge(number, head, token, opener=None, sleep=time.sleep):
     if not re.fullmatch(r'[1-9][0-9]*', number) or not SHA.fullmatch(head) or not token:
         raise ValueError('Numeric PR, full validated head and scoped App token required')
     if opener is None:
         opener = urllib.request.build_opener(NoRedirect()).open
-    request = urllib.request.Request(
-        f'https://api.github.com/repos/{REPO}/pulls/{number}/merge',
-        data=json.dumps({'sha': head, 'merge_method': 'squash'}).encode(), method='PUT',
-        headers={'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json',
-                 'Content-Type': 'application/json', 'User-Agent': 'BoutiqueRelease/1.0'})
-    try:
-        with opener(request, timeout=30) as response:
-            result = json.load(response)
-    except urllib.error.HTTPError as error:
-        if error.code == 405:
-            raise ValueError('GitHub checks or conflicts block merging; rerun validation when ready') from None
-        raise ValueError(f'GitHub refused automatic promotion (HTTP {error.code})') from None
-    except (OSError, ValueError) as error:
-        raise ValueError('Automatic promotion API request failed') from None
-    if result.get('merged') is not True or not SHA.fullmatch(result.get('sha', '')):
-        raise ValueError('GitHub did not confirm the exact promotion merge')
-    return {'merged': True, 'commit': result['sha']}
+    url = f'https://api.github.com/repos/{REPO}/pulls/{number}'
+    headers = {'Authorization': 'Bearer ' + token, 'Accept': 'application/vnd.github+json',
+               'Content-Type': 'application/json', 'User-Agent': 'BoutiqueRelease/1.0'}
+
+    def request(path, data=None, method=None):
+        req = urllib.request.Request(url + path, data=data, method=method, headers=headers)
+        with opener(req, timeout=30) as response:
+            return json.load(response)
+
+    delays = (5, 10, 20, 40)
+    for attempt in range(len(delays) + 1):
+        merging = False
+        try:
+            if attempt:
+                # GitHub computes mergeability asynchronously after another PR merges.
+                # Re-read identity/head and fail closed on conflicts or policy blocks.
+                pr = request('')
+                state = inspect(pr, head)
+                if state['state'] == 'merged':
+                    return {'merged': True, 'commit': state['commit']}
+                if (state['state'] != 'waiting' or pr.get('draft')
+                        or pr.get('mergeable') is False
+                        or pr.get('mergeable_state') not in ('unknown', 'clean')):
+                    raise ValueError('Promotion is closed, conflicting or blocked by GitHub policy')
+            merging = True
+            result = request('/merge', json.dumps({'sha': head, 'merge_method': 'squash'}).encode(), 'PUT')
+        except urllib.error.HTTPError as error:
+            if merging and error.code == 405 and attempt < len(delays):
+                delay = delays[attempt]
+                print(f'GitHub merge readiness pending; retry {attempt + 1}/4 in {delay}s.', file=sys.stderr)
+                sleep(delay)
+                continue
+            if merging and error.code == 405:
+                raise ValueError('GitHub merge readiness did not settle after 5 attempts; checks or conflicts may block merging') from None
+            raise ValueError(f'GitHub refused automatic promotion (HTTP {error.code})') from None
+        except OSError:
+            raise ValueError('Automatic promotion API request failed') from None
+        if result.get('merged') is not True or not SHA.fullmatch(result.get('sha', '')):
+            raise ValueError('GitHub did not confirm the exact promotion merge')
+        return {'merged': True, 'commit': result['sha']}
 
 
 def inspect(pr, head):

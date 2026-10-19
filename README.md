@@ -94,6 +94,14 @@ YAML to ensure only the selected service image and chart version change. It neve
 approves a PR or uses an administrator merge. Failed checks and merge conflicts
 remain blocking.
 
+If GitHub temporarily refuses a merge with HTTP 405 while recalculating
+mergeability, the existing helper retries at most four times, waiting 5, 10, 20
+and 40 seconds. Before each retry it re-reads the PR and verifies its unchanged
+head/repository/base; only clean or unknown mergeability may continue. A changed
+head, closed/draft PR, conflict, policy block or permission error stops the merge.
+Every merge request remains bound to the validated SHA and GitHub's required
+checks. Exhausted retries fail the job clearly. Production remains human-reviewed.
+
 `jenkins/policies/gitops-rulesets.json` separates three controls:
 - Main checks/history: nobody, including the App, can bypass either required check.
 - Main PR/review: humans require Code-S-12 approval. Only the Jenkins App has a
