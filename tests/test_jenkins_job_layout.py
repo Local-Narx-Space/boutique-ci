@@ -36,7 +36,7 @@ class JenkinsJobLayoutTests(unittest.TestCase):
 
     def test_service_artifact_permission_targets_deployment_folder(self):
         source = (ROOT / 'vars/servicePipeline.groovy').read_text()
-        self.assertIn("copyArtifactPermission('Deployments/boutique-deploy-dev')", source)
+        self.assertIn("copyArtifactPermission('/Deployments/boutique-deploy-dev')", source)
 
 
 if __name__ == '__main__':

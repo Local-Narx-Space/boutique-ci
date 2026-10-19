@@ -41,7 +41,7 @@ All promotion and rollback PRs require code-owner approval and passing checks be
     }
     def number = readFile('gitops-pr-number.txt').trim()
     if (!(number ==~ /[1-9][0-9]*/)) { error('Missing GitOps PR number') }
-    // Queue without waiting: one shared executor runs validation after this job ends.
+    // Queue validation in its own job without holding up PR creation.
     build job: 'Release Operations/boutique-gitops-validate', wait: false, parameters: [string(name: 'PR_NUMBER', value: number)]
     archiveArtifacts artifacts: 'gitops-pr-url.txt,planned-change.diff', fingerprint: true
     echo "Deployment PR (validation follows): ${readFile('gitops-pr-url.txt').trim()}"
